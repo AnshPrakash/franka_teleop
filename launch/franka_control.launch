@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="robot_ip" />
+  <arg name="load_gripper" />
+
+  <!-- Copied from franka_control.launch from panda_moveit_config package -->
+  <include file="$(find panda_moveit_config)/launch/franka_control.launch" pass_all_args="true" />]
+
+</launch>
