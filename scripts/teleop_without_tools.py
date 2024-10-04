@@ -44,6 +44,8 @@ class Teleop():
         self.subscriber_ee_pose = rospy.Subscriber('/franka_state_controller/franka_states', FrankaState, self.__process_ee_pose, queue_size=1)
 
         ############## Publishers #######################
+        self.pub_eq_point = rospy.Publisher('/cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=0)
+
         self.pub = rospy.Publisher('/cartesian_impedance_controller/desired_pose', PoseStamped, queue_size=0)
         self.pub_gripper = rospy.Publisher('/cartesian_impedance_controller/desired_gripper_state', PointStamped, queue_size=0)
 
@@ -115,7 +117,7 @@ class Teleop():
         msg.pose.orientation.w = quat[3]
 
         # then apply the action!
-        self.pub.publish(msg)
+        self.pub_eq_point.publish(msg)
 
     def publish_gripper_target(self, gripper_action):
         # publish desired gripper state
@@ -171,6 +173,7 @@ class Teleop():
         self.pub_gripper.publish(msg_gripper)
         time.sleep(1)
 
+
     def close_gripper(self):
         self.gripper_open = False
 
@@ -185,7 +188,7 @@ class Teleop():
 
         list_controller_res = self.list_controllers()
         for i in range(len(list_controller_res.controller)):
-            if (list_controller_res.controller[i].name == "cartesian_pose_impedance_controller"):
+            if (list_controller_res.controller[i].name == "cartesian_impedance_example_controller"):
                 self.cartesian_pose_impedance_controller_loaded = True
                 if (list_controller_res.controller[i].state == "running"):
                     self.cartesian_pose_impedance_controller_running = True
@@ -212,7 +215,7 @@ class Teleop():
         if not(self.cartesian_pose_impedance_controller_loaded and self.effort_joint_trajectory_controller_running):
             time.sleep(0.5)
             # if we do not start up for the first time - we first need to switch back!
-            self.switch_controller(["effort_joint_trajectory_controller"], ["cartesian_pose_impedance_controller"])
+            self.switch_controller(["effort_joint_trajectory_controller"], ["cartesian_impedance_example_controller"])
 
         if (desired_joint_config is None):
             desired_joint_config = np.array([0.004286136549292948, 0.23023615878924988, -0.003981800034836296, -1.7545947008261213,
@@ -226,10 +229,10 @@ class Teleop():
 
         # after moving to the desired pose, switch the controller to the effort joint trajectory!
         if not(self.cartesian_pose_impedance_controller_loaded):
-            self.load_controller("cartesian_pose_impedance_controller")
+            self.load_controller("cartesian_impedance_example_controller")
             time.sleep(0.5)
 
-        self.switch_controller(["cartesian_pose_impedance_controller"], ["effort_joint_trajectory_controller"])
+        self.switch_controller(["cartesian_impedance_example_controller"], ["effort_joint_trajectory_controller"])
 
 
 
@@ -273,7 +276,7 @@ class Teleop():
                 last_vive_position = vive_position
 
             target_ee_pos = [0,0,0]
-            scale_factor = 3
+            scale_factor = 20
 
             target_ee_pos[0] = pos_0_T_EE[0] + scale_factor*(vive_position[0] - last_vive_position[0])
             target_ee_pos[1] = pos_0_T_EE[1] + scale_factor*(vive_position[1] - last_vive_position[1])
@@ -286,7 +289,7 @@ class Teleop():
                 self.msg = self.update_2_ee_target(pos,quat)
 
 
-            self.pub.publish(self.msg)
+            self.pub_eq_point.publish(self.msg)
             counter += 1
             """
             self.publish_eef_target(target_ee_pos, rot_0_T_EE)
