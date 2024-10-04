@@ -1,5 +1,7 @@
 # Franka Teleoperation
 
+You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Interactive Controllers](https://github.com/nbfigueroa/franka_interactive_controllers/tree/main) and [`franka_zed_gazebo`](https://github.com/pearl-robot-lab/franka_zed_gazebo).
+
 ## 1. Start Franka controllers
 ### Simulation
 If you haven't already, launch the simulation with the controllers. You need to have the package `franka_zed_gazebo` to launch in simulation (the launch file is getting the world and the robot description from that package, if you want to launch the robot wihtout the zed camera, then just edit the robot description)
