@@ -1,5 +1,8 @@
 # Franka Teleoperation
 
+This repo provides a script for teleoperating the Franka Panda robot using the VR setup from VIVE. It is necessary to set up the [`vive_ros`](https://github.com/robosavvy/vive_ros) streamer repo that connects to STEAM VR to stream the data from the controllers to ROS. Hopefully this repo can help in robotic manipulation research and dataset creation.
+
+## Requirements
 You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Interactive Controllers](https://github.com/sophiamoyen/franka_interactive_controllers) and [`franka_zed_gazebo`](https://github.com/pearl-robot-lab/franka_zed_gazebo). The `pose_impedance_control_additional_params.yaml` contains tunable parameters for external tool compensation and nullspace stiffness. When the `cartesian_pose_impedance_controller` is launched in the teleoperation, it looks up that file that should be tuned accordingly (with the ZED2 camera attached to the wrist, for example).
 
 
