@@ -56,6 +56,10 @@ python3 teleop.py
 
 The robot will first open the gripper and go to standard pose using the `effort_joint_trajectory_controller`, originally `franka_ros`. Then it will switch to the `cartesian_pose_impedance_controller`. To start/stop the teleop, press the Home button in the VR controller (`1` in the drawing below). To go back to standard pose, press the pad button (`2` in the drawing). To open or close the gripper, press the trigger (`7` in the drawing).
 
+<p align="center">
+  <img src="images/controller.png" width="500"/>
+</p>
+
 ### To do still:
 - Include max/min workspace for the xyz values
 - Tune impedance controller considering external tools (camera)
