@@ -2,6 +2,22 @@
 
 You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Interactive Controllers](https://github.com/nbfigueroa/franka_interactive_controllers/tree/main) and [`franka_zed_gazebo`](https://github.com/pearl-robot-lab/franka_zed_gazebo).
 
+## 0. Docker image
+You can get the current docker image of the environment being used for tests. You can follow the instructions on how to download docker and set up an alias for running a container with the required arguments in this repo: [Docker_env](https://github.com/pearl-robot-lab/Docker_env). Pull a docker image and create a container:
+```
+docker pull sophiamoyen/franka_teleop:07102024
+```
+```
+docker_run_nvidia --name="franka_teleop" sophiamoyen/franka_teleop:07102024 bash
+```
+You should now be inside the container. To exit it, just type `exit` in the cmd. From now on, every time you want to enter the container, start it then execute it:
+```
+docker start franka_teleop
+```
+```
+docker exec -it franka_teleop bash
+```
+
 ## 1. Start Franka controllers
 ### Simulation
 If you haven't already, launch the simulation with the controllers. You need to have the package `franka_zed_gazebo` to launch in simulation (the launch file is getting the world and the robot description from that package, if you want to launch the robot wihtout the zed camera, then just edit the robot description)
