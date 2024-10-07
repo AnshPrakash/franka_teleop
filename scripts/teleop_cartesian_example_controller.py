@@ -32,8 +32,6 @@ class Teleop():
         
         self.ee_pose = Pose()
 
-        self.gripper_open = None
-
         self.rate = rospy.Rate(50)
         ############## Subscribers ######################
 
@@ -45,10 +43,6 @@ class Teleop():
 
         ############## Publishers #######################
         self.pub_eq_point = rospy.Publisher('/cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=0)
-
-        self.pub = rospy.Publisher('/cartesian_impedance_controller/desired_pose', PoseStamped, queue_size=0)
-        self.pub_gripper = rospy.Publisher('/cartesian_impedance_controller/desired_gripper_state', PointStamped, queue_size=0)
-
 
         ############## TF ###############################
         self.tf_listener = tf.TransformListener()
@@ -119,14 +113,6 @@ class Teleop():
         # then apply the action!
         self.pub_eq_point.publish(msg)
 
-    def publish_gripper_target(self, gripper_action):
-        # publish desired gripper state
-        msg_gripper = PointStamped()
-        msg_gripper.header.stamp = rospy.Time.now()
-        msg_gripper.point.x = gripper_action
-
-        self.pub_gripper.publish(msg_gripper)
-
     ############################################# ROS controllers functions #############################################
 
     def list_controllers(self):
@@ -149,33 +135,6 @@ class Teleop():
         switch_controller = rospy.ServiceProxy("/controller_manager/switch_controller", SwitchController)
         switch_controller(start_controllers, stop_controllers, 0, False, 0.0)
 
-
-    ######################################### Gripper functions ##################################################
-    def open_gripper(self):
-        self.gripper_open = True
-
-    def open_gripper_w_msg(self):
-        # function is needed as otherwise the desired gripper state is only sent upon the node being active!
-        msg_gripper = PointStamped()
-        msg_gripper.header.stamp = rospy.Time.now()
-        self.gripper_open = True
-        msg_gripper.point.x = float(not (self.gripper_open))
-        self.pub_gripper.publish(msg_gripper)
-        time.sleep(1)
-
-
-    def close_gripper_w_msg(self):
-        # function is needed as otherwise the desired gripper state is only sent upon the node being active!
-        msg_gripper = PointStamped()
-        msg_gripper.header.stamp = rospy.Time.now()
-        self.gripper_open = False
-        msg_gripper.point.x = float(not (self.gripper_open))
-        self.pub_gripper.publish(msg_gripper)
-        time.sleep(1)
-
-
-    def close_gripper(self):
-        self.gripper_open = False
 
     ############################################ Robot motion scripts ###############################################
     def startup_procedure(self, desired_joint_config=None, initial_config_pose=None):
@@ -209,8 +168,6 @@ class Teleop():
         joint_state = rospy.wait_for_message(topic, JointState)
         initial_pose = dict(zip(joint_state.name, joint_state.position))
 
-        # open gripper first
-        self.open_gripper_w_msg()
 
         if not(self.cartesian_pose_impedance_controller_loaded and self.effort_joint_trajectory_controller_running):
             time.sleep(0.5)

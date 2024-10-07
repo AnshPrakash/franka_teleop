@@ -1,14 +1,20 @@
+########################################################################################
+# Author: Sophia Moyen (sophiamoyen@gmail.com)
+# Last updated: 07.10.2024
+#########################################################################################
+
+
 # ROS
 import rospy
 from geometry_msgs.msg import Pose, PoseStamped, PointStamped
 from controller_manager_msgs.srv import SwitchController, LoadController, UnloadController, ReloadControllerLibraries, ListControllers
 from actionlib import SimpleActionClient
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal, FollowJointTrajectoryResult
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState, Joy
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from std_srvs.srv import Trigger, TriggerResponse
 
-# Frana
+# Franka
 from franka_msgs.msg import FrankaState
 
 # General
@@ -16,10 +22,16 @@ import copy
 import numpy as np
 import tf
 import time
-from tf.transformations import quaternion_matrix, quaternion_from_matrix, rotation_matrix, concatenate_matrices
+from tf.transformations import quaternion_matrix, quaternion_from_matrix, rotation_matrix, concatenate_matrices, quaternion_inverse
 
 # Functions from scripts
 from util import go_to, attempt_to_go_to_joints
+from grasping import Gripper
+
+
+# Macro variables (ideally set them as arguments for python script when done with the coding)
+VIVE_CONTROLLER = 1 # If the left controller is being used for teleop, then 0. If right, then 1.
+SCALE_FACTOR = 3 # Indicates the multiplier for the delta of translation between vr controller and robot
 
 class Teleop():
 
@@ -28,17 +40,34 @@ class Teleop():
         rospy.init_node('franka_teleop')
 
         ############## Global variables #################
-        self.vive_last_right_pose = Pose()
-        
-        self.ee_pose = Pose()
+        self.gripper = Gripper()       # Define gripper class
+        self.ee_pose = Pose()          # Pose of Franka's ed effector
+        self.gripper_open = False       # State of Franka's gripper
 
-        self.gripper_open = None
+        self.vive_last_pose = Pose()   # Pose of VR controller
+        self.vive_button_state = Joy() # State of ALL buttons from VR controller
 
-        self.rate = rospy.Rate(50)
+        # The state change for each specific button will be defined via the button callback function
+        self.vive_side_button = 0
+        self.vive_home_button = 0
+        self.vive_trigger_button = 0
+        self.vive_pad_button = 0
+
+        self.teleop_on = False         # When home button is pressed, teleop stops/starts
+
+        self.rate = rospy.Rate(50)     # Setting rate
         ############## Subscribers ######################
 
-        # VIVE controller pose
-        self.vive_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1_Pose', Pose, self.vive_pose_cb)
+        # VIVE controller pose and button states
+        if VIVE_CONTROLLER == 0:
+            # Left controller
+            self.vive_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1_Pose', Pose, self.vive_pose_cb)
+            self.button_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1/joy', Joy, self.button_cb)
+
+        elif VIVE_CONTROLLER == 1:
+            # Right controller
+            self.vive_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1_Pose', Pose, self.vive_pose_cb)
+            self.button_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1/joy', Joy, self.button_cb)
 
         # Franka end effector pose (for some reason can't read topic)
         self.subscriber_ee_pose = rospy.Subscriber('/franka_state_controller/franka_states', FrankaState, self.__process_ee_pose, queue_size=1)
@@ -47,14 +76,35 @@ class Teleop():
         self.pub = rospy.Publisher('/cartesian_impedance_controller/desired_pose', PoseStamped, queue_size=0)
         self.pub_gripper = rospy.Publisher('/cartesian_impedance_controller/desired_gripper_state', PointStamped, queue_size=0)
 
-
         ############## TF ###############################
         self.tf_listener = tf.TransformListener()
 
     ################################# ROS callback funnctions #####################################################
     def vive_pose_cb(self, msg):
-        # Saves vive controller pose to gloabl variable
-        self.vive_last_right_pose = msg
+        # Saves vive controller pose to global variable
+        self.vive_last_pose = msg
+
+    def button_cb(self, button_data):
+        # Collects the state for each of the buttons from the VR controller
+        self.vive_button_state = button_data 
+
+        # Add logic for starting, stoping teleop in case button was pressed
+        if self.vive_home_button == 0 and button_data.buttons[0] == 1:
+            self.teleop_on = not self.teleop_on 
+
+        # Add logic for closing and opening gripper
+        if self.vive_trigger_button == 0 and button_data.buttons[1] == 1:
+            self.gripper_open = not self.gripper_open
+
+        # Add logic for moving the robot home
+        if self.vive_pad_button == 0 and button_data.buttons[2] == 1:
+            self.move_home()     
+
+        # Storing button states
+        self.vive_home_button = button_data.buttons[0]
+        self.vive_trigger_button = button_data.buttons[1]
+        self.vive_pad_button = button_data.buttons[2]
+        self.vive_side_button = button_data.buttons[3]
 
     def __process_ee_pose(self, msg):
         # Callback to get EE pose
@@ -101,6 +151,7 @@ class Teleop():
 
     ############################################### Desired pose/state functions ############################################
     def publish_eef_target(self, pos, quat):
+        # Receives position and quaternion and converts to PoseStamped message (the one used for publishing the target pose)
         msg = PoseStamped()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = 'panda_link0'
@@ -148,34 +199,12 @@ class Teleop():
         switch_controller(start_controllers, stop_controllers, 0, False, 0.0)
 
 
-    ######################################### Gripper functions ##################################################
-    def open_gripper(self):
-        self.gripper_open = True
-
-    def open_gripper_w_msg(self):
-        # function is needed as otherwise the desired gripper state is only sent upon the node being active!
-        msg_gripper = PointStamped()
-        msg_gripper.header.stamp = rospy.Time.now()
-        self.gripper_open = True
-        msg_gripper.point.x = float(not (self.gripper_open))
-        self.pub_gripper.publish(msg_gripper)
-        time.sleep(1)
-
-
-    def close_gripper_w_msg(self):
-        # function is needed as otherwise the desired gripper state is only sent upon the node being active!
-        msg_gripper = PointStamped()
-        msg_gripper.header.stamp = rospy.Time.now()
-        self.gripper_open = False
-        msg_gripper.point.x = float(not (self.gripper_open))
-        self.pub_gripper.publish(msg_gripper)
-        time.sleep(1)
-
-    def close_gripper(self):
-        self.gripper_open = False
-
     ############################################ Robot motion scripts ###############################################
     def startup_procedure(self, desired_joint_config=None, initial_config_pose=None):
+        """
+        Load firstly the effort_joint_trajectory_controller to go to standard pose and then switches to
+        cartesian_pose_impedance_controller for teleoperation
+        """
 
         self.cartesian_pose_impedance_controller_loaded = False
         self.cartesian_pose_impedance_controller_running = False
@@ -206,8 +235,13 @@ class Teleop():
         joint_state = rospy.wait_for_message(topic, JointState)
         initial_pose = dict(zip(joint_state.name, joint_state.position))
 
-        # open gripper first
-        self.open_gripper_w_msg()
+        # Open gripper first
+        action_result = self.gripper.move(0.04, 0.04) 
+        if action_result == True:
+            print("Gripper opened succesfully")
+            self.gripper_open = True
+        else:
+            print("Gripper failed to open")
 
         if not(self.cartesian_pose_impedance_controller_loaded and self.effort_joint_trajectory_controller_running):
             time.sleep(0.5)
@@ -220,81 +254,129 @@ class Teleop():
 
         attempt_to_go_to_joints(client, topic, desired_joint_config, duration=5)
 
-        # before switching, save current eef_pos and eef_quat
-        curr_eef_pose = copy.deepcopy(self.ee_pose)
-
-
-        # after moving to the desired pose, switch the controller to the effort joint trajectory!
+        # After moving to the desired pose, switch the controller to the pose impedance controller
         if not(self.cartesian_pose_impedance_controller_loaded):
             self.load_controller("cartesian_pose_impedance_controller")
             time.sleep(0.5)
 
         self.switch_controller(["cartesian_pose_impedance_controller"], ["effort_joint_trajectory_controller"])
 
+    def move_home(self):
+        # Disabling teleop
+        self.teleop_on = False
 
+        self.switch_controller(["effort_joint_trajectory_controller"], ["cartesian_pose_impedance_controller"])
+        time.sleep(0.5)
+        # then we can execute the normal go home move
+        self.startup_procedure()
 
-    def update_2_ee_target(self, trans, rot):
-        # Function just to test
-        msg = PoseStamped()
-        msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = 'panda_link0'
-        # add some scaling such that the robot can be moved more easily
-        msg.pose.position.x = trans[0] +0.2
-        msg.pose.position.y = trans[1] +0.2
-        msg.pose.position.z = trans[2] +0.1
-
-        msg.pose.orientation.x = rot[0]
-        msg.pose.orientation.y = rot[1]
-        msg.pose.orientation.z = rot[2]
-        msg.pose.orientation.w = rot[3]
-
-        return msg
-
+    ############################################ Teloperation loop ###############################################
     def run(self):
-        counter = 1
+        """
+        Runs the teleoperation. Some notes:
+            - The teleoperation can be started/stopped by pressing the home button in the vive controller
+            - The gripper can closed/opened by pressing the trigger in the vive controller
+            - The robot can be moved to home position if the pad button is pressed
+            - For updating the translation of the end-effector, a simple scale factor is used sucha as:
+                A' = A + alpha(B'-B)
+            - For updating the rotation, a matrix multiplication for quaternions is done:
+                A' = (B*Binv)*A
+        """
         while not rospy.is_shutdown():
+            # Keeping values for taking the difference when the teleop is turned on
+            last_gripper_state = self.gripper_open 
 
-            # Get current EE pose
-            trans_EE, rot_EE = self.get_NE_pose()
-            print("EE position:", trans_EE)
-            print("---------------------------------------------------")
+            # Storing values from the VIVE controller and creating matrices
+            last_vive_position, last_vive_rotation = self.get_pose_info(self.vive_last_pose)
+            last_vive_homogeneous = np.eye(4)
+            last_vive_homogeneous[:3, 3] = copy.deepcopy(last_vive_position)
+            last_vive_homogeneous[:3, :3] = quaternion_matrix(copy.deepcopy(last_vive_rotation))[:-1, :-1]
+            last_vive_homogeneous_inv = np.eye(4)
+            last_vive_homogeneous_inv[:3,:3] = np.linalg.inv(last_vive_homogeneous[:3,:3])
+            last_vive_homogeneous_inv[:3, 3] = -np.matmul(np.linalg.inv(last_vive_homogeneous[:3,:3]),last_vive_homogeneous[:3, 3])
 
-            # Get VIVE controller pose
-            vive_position, vive_orientation = self.get_pose_info(self.vive_last_right_pose)
-            print("VIVE position:", vive_position)
-
-            # Get 0 T EE pose
-            print("---------------------------------------------------")
+            # Storing values from the end-effector and creating matrix
             pos_0_T_EE, rot_0_T_EE = self.get_pose_info(self.ee_pose)
-            print("0 T EE:", pos_0_T_EE)
-            print("---------------------------------------------------")
-
-            if counter == 1:
-                last_vive_position = vive_position
-
-            target_ee_pos = [0,0,0]
-            scale_factor = 3
-
-            target_ee_pos[0] = pos_0_T_EE[0] + scale_factor*(vive_position[0] - last_vive_position[0])
-            target_ee_pos[1] = pos_0_T_EE[1] + scale_factor*(vive_position[1] - last_vive_position[1])
-            target_ee_pos[2] = pos_0_T_EE[2] + scale_factor*(vive_position[2] - last_vive_position[2])
+            last_EE_homogeneous = np.eye(4)
+            last_EE_homogeneous[:3, 3] = copy.deepcopy(pos_0_T_EE)
+            last_EE_homogeneous[:3,:3] = quaternion_matrix(copy.deepcopy(rot_0_T_EE))[:-1, :-1]
 
 
-            """
-            if counter == 1:
-                pos,quat = self.get_pose_info(self.ee_pose)
-                self.msg = self.update_2_ee_target(pos,quat)
+            last_vive_position, last_vive_rotation = self.get_pose_info(self.vive_last_pose)
 
 
-            self.pub.publish(self.msg)
-            counter += 1
-            """
-            self.publish_eef_target(target_ee_pos, rot_0_T_EE)
-            last_vive_position = vive_position # storing to take the difference in future loops
+            while self.teleop_on == True:
+            # To start or stop the teleop, home button in the vr controller must be pressed
 
-            self.rate.sleep()
+                # Just printing some stuff
+                trans_EE, rot_EE = self.get_NE_pose()                                   # Get current EE pose
+                print("EE position:", trans_EE)
+                print("---------------------------------------------------")
+                vive_position, vive_rotation = self.get_pose_info(self.vive_last_pose)  # Get VIVE controller pose
+                print("VIVE position:", vive_position)
+                print("---------------------------------------------------")
+                pos_0_T_EE, rot_0_T_EE = self.get_pose_info(self.ee_pose)               # Get 0 T EE pose
+                print("0 T EE:", pos_0_T_EE)
+                print("---------------------------------------------------")
 
-            counter += 1
+                # Calculate the TRANSLATION of the end-effector based on the delta pose of the VR controller
+                target_ee_pos = [0,0,0] # Initialize empty list
+                target_ee_pos[0] = pos_0_T_EE[0] + SCALE_FACTOR*(vive_position[0] - last_vive_position[0])
+                target_ee_pos[1] = pos_0_T_EE[1] + SCALE_FACTOR*(vive_position[1] - last_vive_position[1])
+                target_ee_pos[2] = pos_0_T_EE[2] + SCALE_FACTOR*(vive_position[2] - last_vive_position[2])
+
+                # Calculate ROTATION of end-effector A' = (B*Binv)*A
+                EE_homogeneous = np.eye(4)
+                EE_homogeneous[:3,:3] = quaternion_matrix(rot_0_T_EE)[:-1, :-1]
+                EE_homogeneous[:3,3] = pos_0_T_EE
+
+                vive_homogeneous = np.eye(4)
+                vive_homogeneous[:3,:3] = quaternion_matrix(vive_rotation)[:-1, :-1]
+                vive_homogeneous[:3,3] = vive_position
+
+                target_ee = np.matmul(np.matmul(vive_homogeneous, last_vive_homogeneous_inv), EE_homogeneous)
+                target_ee_rot = quaternion_from_matrix(target_ee)
+ 
+                # Publish EEF pose for the conttroller
+                self.publish_eef_target(target_ee_pos, np.asarray(target_ee_rot))
+
+                # Publish command for gripper opening/closing
+                if self.gripper_open != last_gripper_state:
+                    if last_gripper_state == False:
+                        # If the trigger button was pressed and the gripper was previously closed
+                        action_result = self.gripper.move(0.4,0.4) # Open gripper with width
+                        if action_result == True:
+                            print("Gripper was successfully opened")
+                        else:
+                            print("Gripper failed to open")
+
+                    elif last_gripper_state == True:
+                        result_grasp = self.gripper.grasp()
+                        if result_grasp == True:
+                            print("Gripper was successfully closed")
+                        else:
+                            print("Gripper failed to close")
+
+                last_gripper_state = self.gripper_open # Storing to take the difference in future loops
+                # Storing values from the VIVE controller and creating matrices
+                last_vive_position, last_vive_rotation = self.get_pose_info(self.vive_last_pose)
+                last_vive_homogeneous = np.eye(4)
+                last_vive_homogeneous[:3, 3] = copy.deepcopy(last_vive_position)
+                last_vive_homogeneous[:3, :3] = quaternion_matrix(copy.deepcopy(last_vive_rotation))[:-1, :-1]
+                last_vive_homogeneous_inv = np.eye(4)
+                last_vive_homogeneous_inv[:3,:3] = np.linalg.inv(last_vive_homogeneous[:3,:3])
+                last_vive_homogeneous_inv[:3, 3] = -np.matmul(np.linalg.inv(last_vive_homogeneous[:3,:3]),last_vive_homogeneous[:3, 3])
+
+                # Storing values from the end-effector and creating matrix
+                pos_0_T_EE, rot_0_T_EE = self.get_pose_info(self.ee_pose)
+                last_EE_homogeneous = np.eye(4)
+                last_EE_homogeneous[:3, 3] = copy.deepcopy(pos_0_T_EE)
+                last_EE_homogeneous[:3,:3] = quaternion_matrix(copy.deepcopy(rot_0_T_EE))[:-1, :-1]
+
+                last_vive_position, last_vive_rotation = self.get_pose_info(self.vive_last_pose)
+
+                self.rate.sleep()
+
 
 
 

@@ -1,3 +1,8 @@
+########################################################################################
+# Author: Sophia Moyen (sophiamoyen@gmail.com)
+# Last updated: 07.10.2024
+#########################################################################################
+
 import rospy
 from std_msgs.msg import Float64
 from franka_gripper.msg import MoveActionGoal, GraspActionGoal,GraspActionResult, MoveActionResult
@@ -21,29 +26,23 @@ class Gripper:
         self.gripper_grasp_result = data
     
     def move(self, finger1_y, finger2_y):
-        
         gripper_data = MoveActionGoal()
         gripper_data.goal.width = finger1_y+finger2_y
         gripper_data.goal.speed = 0.1
         self.gripper_move_pub.publish(gripper_data)
-
-        rospy.sleep(3)
         return self.gripper_move_result.result.success
         
 
     def grasp(self):
-        
         gripper_data = GraspActionGoal()
         gripper_data.goal.width = 0.045
         gripper_data.goal.epsilon.inner = 0.1
         gripper_data.goal.epsilon.outer = 0.1
-        gripper_data.goal.force = 10.0
+        gripper_data.goal.force = 5.0
         gripper_data.goal.speed = 0.1
 
         rospy.loginfo("Executing grasp Width:%f, Force:%f", gripper_data.goal.width, gripper_data.goal.force)
-        
         self.gripper_pub.publish(gripper_data)
-        rospy.sleep(3)
         return self.gripper_grasp_result.result.success
 
 

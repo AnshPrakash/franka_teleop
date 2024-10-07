@@ -1,6 +1,7 @@
 # Franka Teleoperation
 
-You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Interactive Controllers](https://github.com/nbfigueroa/franka_interactive_controllers/tree/main) and [`franka_zed_gazebo`](https://github.com/pearl-robot-lab/franka_zed_gazebo).
+You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Interactive Controllers](https://github.com/sophiamoyen/franka_interactive_controllers) and [`franka_zed_gazebo`](https://github.com/pearl-robot-lab/franka_zed_gazebo). The `pose_impedance_control_additional_params.yaml` contains tunable parameters for external tool compensation and nullspace stiffness. When the `cartesian_pose_impedance_controller` is launched in the teleoperation, it looks up that file that should be tuned accordingly (with the ZED2 camera attached to the wrist, for example).
+
 
 ## 0. Docker image
 You can get the current docker image of the environment being used for tests. You can follow the instructions on how to download docker and set up an alias for running a container with the required arguments in this repo: [Docker_env](https://github.com/pearl-robot-lab/Docker_env). Pull a docker image and create a container:
@@ -20,8 +21,7 @@ docker exec -it franka_teleop bash
 
 ## 1. Start Franka controllers
 ### Simulation
-If you haven't already, launch the simulation with the controllers. You need to have the package `franka_zed_gazebo` to launch in simulation (the launch file is getting the world and the robot description from that package, if you want to launch the robot wihtout the zed camera, then just edit the robot description)
-
+If you haven't already, launch the simulation with the controllers. You need to have the package `franka_zed_gazebo` to launch in simulation (the launch file is getting the world and the robot description from that package)
 
 With the ZED2 attached to the end-effector:
 
@@ -54,9 +54,11 @@ Inside the scripts folder, run the python file:
 python3 teleop.py
 ```
 
+The robot will first open the gripper and go to standard pose using the `effort_joint_trajectory_controller`, originally `franka_ros`. Then it will switch to the `cartesian_pose_impedance_controller`. To start/stop the teleop, press the Home button in the VR controller (`1` in the drawing below). To go back to standard pose, press the pad button (`2` in the drawing). To open or close the gripper, press the trigger (`7` in the drawing).
+
 ### To do still:
 - Include max/min workspace for the xyz values
-- Add the teleop for rotation
-- Map the buttons for the controller to start teleop, stop teleop, reposition, open gripper, close gripper
 - Tune impedance controller considering external tools (camera)
-- Implement opening and closing of gripper
+- Implement a better way to close and open gripper
+- Check out if there is a better way to implement the rotation of the gripper
+- Not in here, but in the recording node read button state for starting/stopping recording
