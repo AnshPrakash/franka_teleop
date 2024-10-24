@@ -196,7 +196,7 @@ class Teleop():
     def switch_controller(self, start_controllers, stop_controllers):
         rospy.wait_for_service("/controller_manager/switch_controller")
         switch_controller = rospy.ServiceProxy("/controller_manager/switch_controller", SwitchController)
-        switch_controller(start_controllers, stop_controllers, 0, False, 0.0)
+        switch_controller(start_controllers, stop_controllers, 1, False, 0.0)
 
 
     ############################################ Robot motion scripts ###############################################
@@ -248,6 +248,7 @@ class Teleop():
             # if we do not start up for the first time - we first need to switch back!
             self.switch_controller(["effort_joint_trajectory_controller"], ["cartesian_pose_impedance_controller"])
 
+        # Send the robot to initial pose (same pose as the nullspace in the yaml file)
         if (desired_joint_config is None):
             desired_joint_config = np.array([0.004286136549292948, 0.23023615878924988, -0.003981800034836296, -1.7545947008261213,
                                              0.0032928755527341326, 1.994446315732633, 0.7839058620188021])
@@ -383,7 +384,6 @@ class Teleop():
 if __name__ == '__main__':
     teleop = Teleop()
     teleop.startup_procedure()
-    teleop.run()
     
 
 
