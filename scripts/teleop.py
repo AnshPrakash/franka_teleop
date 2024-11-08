@@ -31,7 +31,7 @@ from grasping import Gripper
 
 # Macro variables (ideally set them as arguments for python script when done with the coding)
 VIVE_CONTROLLER = 1 # If the left controller is being used for teleop, then 0. If right, then 1.
-SCALE_FACTOR = 3 # Indicates the multiplier for the delta of translation between vr controller and robot
+SCALE_FACTOR = 10 # Indicates the multiplier for the delta of translation between vr controller and robot
 
 class Teleop():
 
@@ -61,13 +61,13 @@ class Teleop():
         # VIVE controller pose and button states
         if VIVE_CONTROLLER == 0:
             # Left controller
-            self.vive_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1_Pose', Pose, self.vive_pose_cb)
-            self.button_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1/joy', Joy, self.button_cb)
+            self.vive_left_subscriber = rospy.Subscriber('/oculus/my_left_controller_1_Pose', Pose, self.vive_pose_cb)
+            self.button_left_subscriber = rospy.Subscriber('/oculus/my_left_controller_1/joy', Joy, self.button_cb)
 
         elif VIVE_CONTROLLER == 1:
             # Right controller
-            self.vive_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1_Pose', Pose, self.vive_pose_cb)
-            self.button_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1/joy', Joy, self.button_cb)
+            self.vive_right_subscriber = rospy.Subscriber('/oculus/my_right_controller_1_Pose', Pose, self.vive_pose_cb)
+            self.button_right_subscriber = rospy.Subscriber('/oculus/my_right_controller_1/joy', Joy, self.button_cb)
 
         # Franka end effector pose (for some reason can't read topic)
         self.subscriber_ee_pose = rospy.Subscriber('/franka_state_controller/franka_states', FrankaState, self.__process_ee_pose, queue_size=1)

@@ -55,19 +55,21 @@ class Teleop():
 
         self.teleop_on = False         # When home button is pressed, teleop stops/starts
 
-        self.rate = rospy.Rate(50)     # Setting rate
+        self.rate = rospy.Rate(40)     # Setting rate
         ############## Subscribers ######################
 
         # VIVE controller pose and button states
         if VIVE_CONTROLLER == 0:
             # Left controller
-            self.vive_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1_Pose', Pose, self.vive_pose_cb)
-            self.button_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1/joy', Joy, self.button_cb)
+            # self.vive_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1_Pose', Pose, self.vive_pose_cb)
+            # self.button_left_subscriber = rospy.Subscriber('/vive/my_left_controller_1/joy', Joy, self.button_cb)
+            self.vive_left_subscriber = rospy.Subscriber('/oculus/my_left_controller_1_Pose', Pose, self.vive_pose_cb)
+            self.button_left_subscriber = rospy.Subscriber('/oculus/my_left_controller_1/joy', Joy, self.button_cb)
 
         elif VIVE_CONTROLLER == 1:
             # Right controller
-            self.vive_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1_Pose', Pose, self.vive_pose_cb)
-            self.button_right_subscriber = rospy.Subscriber('/vive/my_right_controller_1/joy', Joy, self.button_cb)
+            self.vive_right_subscriber = rospy.Subscriber('/oculus/my_right_controller_1_Pose', Pose, self.vive_pose_cb)
+            self.button_right_subscriber = rospy.Subscriber('/oculus/my_right_controller_1/joy', Joy, self.button_cb)
 
         # Franka end effector pose (for some reason can't read topic)
         self.subscriber_ee_pose = rospy.Subscriber('/franka_state_controller/franka_states', FrankaState, self.__process_ee_pose, queue_size=1)
@@ -306,7 +308,7 @@ class Teleop():
             last_vive_position, last_vive_rotation = self.get_pose_info(self.vive_last_pose)
 
 
-            while self.teleop_on == True:
+            while True:
             # To start or stop the teleop, home button in the vr controller must be pressed
 
                 # Just printing some stuff
@@ -340,6 +342,8 @@ class Teleop():
  
                 # Publish EEF pose for the conttroller
                 self.publish_eef_target(target_ee_pos, np.asarray(target_ee_rot))
+                print("Target EE:", target_ee_pos)
+                print("---------------------------------------------------")
 
                 # Publish command for gripper opening/closing
                 if self.gripper_open != last_gripper_state:
@@ -384,6 +388,7 @@ class Teleop():
 if __name__ == '__main__':
     teleop = Teleop()
     teleop.startup_procedure()
+    #teleop.run()
     
 
 
