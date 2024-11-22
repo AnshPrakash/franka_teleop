@@ -1,0 +1,3 @@
+[submodule "droid"]
+	path = droid
+	url = https://github.com/droid-dataset/droid.git
