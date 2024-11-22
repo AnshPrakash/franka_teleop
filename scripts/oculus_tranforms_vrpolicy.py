@@ -134,8 +134,6 @@ def main():
             right_controller_buttons = dict( [(button , info[button]) for button in control_buttons]) 
             right_controller_pose = info["target_cartesian_position"]
 
-            # right_controller_pose = transformations['r']
-            # right_controller_buttons = buttons
             print("Buttons", right_controller_buttons)
             print("Pose", right_controller_pose)
 

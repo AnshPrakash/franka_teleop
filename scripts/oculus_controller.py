@@ -167,8 +167,6 @@ class VRPolicyFranka:
 
         # Prepare Return Values #
         info_dict = { 
-                        "target_pos" : target_pos, # this line is added by Ansh
-                        "target_euler" : target_euler, # this line is added by Ansh
                         "target_cartesian_position": target_cartesian,
                         "target_gripper_position": target_gripper,
                         "A": self._state["buttons"]["A"],    # this line is added by Sophie
