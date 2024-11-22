@@ -6,7 +6,7 @@ import geometry_msgs.msg
 import sensor_msgs.msg
 from oculus_controller import VRPolicyFranka
 import numpy as np
-
+from droid.misc.transformations import euler_to_quat
 
 class OculusReaderVRPolicy:
     """
@@ -60,10 +60,10 @@ class OculusReaderVRPolicy:
             return False, None, None, None
         
 
-def publish_transform(transform, name):
+def publish_transform(transform):
     pose_publisher = rospy.Publisher('/oculus/my_right_controller_1_Pose', geometry_msgs.msg.Pose, queue_size=0)
 
-    translation = transform[:3, 3]
+    translation = transform[:3]
 
     # br = tf2_ros.TransformBroadcaster()
     t = geometry_msgs.msg.Pose()
@@ -76,14 +76,14 @@ def publish_transform(transform, name):
     t.position.y = translation[1]
     t.position.z = translation[2]
 
-    quat = quaternion_from_matrix(transform)    
+    quat = euler_to_quat(transform[3:])
     t.orientation.x = quat[0]
     t.orientation.y = quat[1]
     t.orientation.z = quat[2]
     t.orientation.w = quat[3]
 
     # br.sendTransform(t)
-
+    
     pose_publisher.publish(t)
 
 def publish_buttons(buttons):
@@ -121,19 +121,26 @@ def publish_buttons(buttons):
 
 def main():
     oculus_reader : OculusReaderVRPolicy = OculusReaderVRPolicy()
+    control_buttons = ["A", "B", "RTr", "RG", "rightJS"]
     rospy.init_node('oculus_reader')
+
     while not rospy.is_shutdown():
         rospy.sleep(0.001)
-        # maybe get from some topic
-        # @here /opt/ros_ws/src/franka_teleop/droid/droid/franka/robot.py in this form
         
+        _, _, _, info = oculus_reader.get_update()
         
-        v = oculus_reader.get_update()
-        print(v)
-        # right_controller_pose = transformations['r']
-        # right_controller_buttons = buttons
-        # publish_transform(right_controller_pose, 'oculus')
-        # publish_buttons(right_controller_buttons)
+        if info:
+
+            right_controller_buttons = dict( [(button , info[button]) for button in control_buttons]) 
+            right_controller_pose = info["target_cartesian_position"]
+
+            # right_controller_pose = transformations['r']
+            # right_controller_buttons = buttons
+            print("Buttons", right_controller_buttons)
+            print("Pose", right_controller_pose)
+
+            publish_transform(right_controller_pose)
+            publish_buttons(right_controller_buttons)
         
 
 if __name__ == '__main__':
