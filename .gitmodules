@@ -1,3 +1,6 @@
 [submodule "droid"]
 	path = droid
 	url = https://github.com/droid-dataset/droid.git
+[submodule "oculus_reader"]
+	path = oculus_reader
+	url = https://github.com/rail-berkeley/oculus_reader.git
