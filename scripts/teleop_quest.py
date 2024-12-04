@@ -22,7 +22,7 @@ import copy
 import numpy as np
 import tf
 import time
-from tf.transformations import quaternion_matrix, quaternion_from_matrix, rotation_matrix, concatenate_matrices, quaternion_inverse
+from tf.transformations import quaternion_matrix, quaternion_from_matrix, euler_from_matrix, euler_matrix
 
 # Functions from scripts
 from util import go_to, attempt_to_go_to_joints
@@ -32,6 +32,7 @@ from grasping import Gripper
 # Macro variables (ideally set them as arguments for python script when done with the coding)
 QUEST_CONTROLLER = 1 # If the left controller is being used for teleop, then 0. If right, then 1.
 SCALE_FACTOR = 10 # Indicates the multiplier for the delta of translation between vr controller and robot
+SCALE_FACTOR_ROTATION = 7 # Indicates the multiplier for the delta of rotation between vr controller and robot
 
 import enum
 
@@ -165,6 +166,41 @@ class Teleop():
         rot_w = pose.orientation.w
 
         return [x,y,z], [rot_x,rot_y,rot_z,rot_w]
+    
+    def _skew_symmetric_matrix(self, v : np.array):
+        # Returns the skew-symmetric matrix for vector v
+        skew_mat = np.array([[ 0, -v[2],  v[1]],
+                        [ v[2],  0, -v[0]],
+                        [-v[1],  v[0],  0]])
+        return skew_mat
+
+    def rotation_matrix_from_axis_angle(self, axis, angle):
+        # Normalize the axis vector to ensure it's a unit vector
+        axis = axis / np.linalg.norm(axis)
+        
+        # Compute the rotation matrix using Rodrigues' formula
+        cos_theta = np.cos(angle)
+        sin_theta = np.sin(angle)
+        one_minus_cos = 1 - cos_theta
+        
+        # Compute the outer product of the axis vector with itself
+        axis_outer = np.outer(axis, axis)
+        
+        # Create the rotation matrix
+        R = cos_theta * np.eye(3) + one_minus_cos * axis_outer + sin_theta * self._skew_symmetric_matrix(axis)
+        
+        return R
+
+    def scale_rotation(self, R):
+        """ 
+            Input:
+                R: Rotation matrix
+            return Scale Rotational Matrix
+        """
+        euler = euler_from_matrix(R, 'rxyz')
+        euler = [ SCALE_FACTOR_ROTATION*angle for angle in euler ]
+        scaled_rotaion_matrix = euler_matrix(euler[0], euler[1], euler[2], 'syxz')
+        return scaled_rotaion_matrix
 
     ############################################### Desired pose/state functions ############################################
     def publish_eef_target(self, pos, quat):
@@ -351,7 +387,10 @@ class Teleop():
                 quest_homogeneous[:3,:3] = quaternion_matrix(quest_rotation)[:-1, :-1]
                 quest_homogeneous[:3,3] = quest_position
 
-                target_ee = np.matmul(np.matmul(quest_homogeneous, last_quest_homogeneous_inv), EE_homogeneous)
+
+                rotate_ee = np.matmul(quest_homogeneous, last_quest_homogeneous_inv)
+                rotate_ee = self.scale_rotation(rotate_ee)
+                target_ee = np.matmul(rotate_ee, EE_homogeneous)
                 target_ee_rot = quaternion_from_matrix(target_ee)
  
                 # Publish EEF pose for the conttroller
