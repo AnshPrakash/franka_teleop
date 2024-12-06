@@ -31,7 +31,7 @@ from grasping import Gripper
 
 # Macro variables (ideally set them as arguments for python script when done with the coding)
 QUEST_CONTROLLER = 1 # If the left controller is being used for teleop, then 0. If right, then 1.
-SCALE_FACTOR = 10 # Indicates the multiplier for the delta of translation between vr controller and robot
+SCALE_FACTOR = 7 # Indicates the multiplier for the delta of translation between vr controller and robot
 SCALE_FACTOR_ROTATION = 7 # Indicates the multiplier for the delta of rotation between vr controller and robot
 
 import enum
@@ -199,7 +199,7 @@ class Teleop():
         """
         euler = euler_from_matrix(R, 'rxyz')
         euler = [ SCALE_FACTOR_ROTATION*angle for angle in euler ]
-        scaled_rotaion_matrix = euler_matrix(euler[0], euler[1], euler[2], 'syxz')
+        scaled_rotaion_matrix = euler_matrix(euler[0], euler[1], euler[2], 'rxyz')
         return scaled_rotaion_matrix
 
     ############################################### Desired pose/state functions ############################################
