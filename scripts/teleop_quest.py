@@ -385,7 +385,7 @@ class Teleop():
 
                 quest_homogeneous = np.eye(4)
                 quest_homogeneous[:3,:3] = quaternion_matrix(quest_rotation)[:-1, :-1]
-                quest_homogeneous[:3,3] = quest_position
+                # quest_homogeneous[:3,3] = quest_position
 
 
                 rotate_ee = np.matmul(quest_homogeneous, last_quest_homogeneous_inv)
@@ -421,7 +421,7 @@ class Teleop():
                 last_quest_homogeneous[:3, :3] = quaternion_matrix(copy.deepcopy(last_quest_rotation))[:-1, :-1]
                 last_quest_homogeneous_inv = np.eye(4)
                 last_quest_homogeneous_inv[:3,:3] = np.linalg.inv(last_quest_homogeneous[:3,:3])
-                last_quest_homogeneous_inv[:3, 3] = -np.matmul(np.linalg.inv(last_quest_homogeneous[:3,:3]),last_quest_homogeneous[:3, 3])
+                # last_quest_homogeneous_inv[:3, 3] = -np.matmul(np.linalg.inv(last_quest_homogeneous[:3,:3]),last_quest_homogeneous[:3, 3])
 
                 # Storing values from the end-effector and creating matrix
                 pos_0_T_EE, rot_0_T_EE = self.get_pose_info(self.ee_pose)
