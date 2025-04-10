@@ -21,7 +21,7 @@ docker start franka_teleop
 ```
 docker exec -it franka_teleop bash
 git remote set-url origin https://github.com/AnshPrakash/franka_teleop.git
-git pull
+git pull --recurse-submodules
 ```
 
 ## 1. Start Franka controllers
