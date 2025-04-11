@@ -24,12 +24,30 @@ git remote set-url origin https://github.com/AnshPrakash/franka_teleop.git
 git pull --recurse-submodules
 ```
 
-Environment Variable
+### Environment Variable
+
+For Oculus & Droid
 
 ```
 PYTHONPATH=$PYTHONPATH:/opt/ros_ws/src/franka_teleop/oculus_reader/
 PYTHONPATH=$PYTHONPATH:/opt/ros_ws/src/franka_teleop/droid/
 ```
+
+For Displaying correctly from docker container
+
+```
+export DISPLAY=:1
+```
+
+
+### Build & Source
+
+```
+cd /opt/ros_ws
+catkin_make
+source devel/setup.bash
+```
+
 
 
 ## 1. Start Franka controllers
