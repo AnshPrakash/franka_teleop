@@ -24,6 +24,14 @@ git remote set-url origin https://github.com/AnshPrakash/franka_teleop.git
 git pull --recurse-submodules
 ```
 
+Environment Variable
+
+```
+PYTHONPATH=$PYTHONPATH:/opt/ros_ws/src/franka_teleop/oculus_reader/
+PYTHONPATH=$PYTHONPATH:/opt/ros_ws/src/franka_teleop/droid/
+```
+
+
 ## 1. Start Franka controllers
 ### Simulation
 If you haven't already, launch the simulation with the controllers. You need to have the package `franka_zed_gazebo` to launch in simulation (the launch file is getting the world and the robot description from that package)
