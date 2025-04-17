@@ -48,7 +48,11 @@ catkin_make
 source devel/setup.bash
 ```
 
-
+### Install adb inside docker
+```
+apt update
+apt install android-tools-adb
+```
 
 ## 1. Start Franka controllers
 ### Simulation
