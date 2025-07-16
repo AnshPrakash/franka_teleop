@@ -49,6 +49,7 @@ class RosbagControlledRecorder(object):
     """Record a rosbag with service calls to control start, stop  and pause"""
 
     def __init__(self, save_folder, topics):
+        os.makedirs(save_folder, exist_ok=True)
         self.save_folder = save_folder
         self.topics = topics
         self.recording_started = False
@@ -65,15 +66,18 @@ class RosbagControlledRecorder(object):
         else:
             self.rosbag_command = self._generate_rosbag_command()
             process = subprocess.Popen(self.rosbag_command)
+            # from ipdb import set_trace as bp; bp()
             self.process_pid = process.pid
             self.recording_started = True
-            rospy.logwarn("Started recording rosbag")
+            self.recording_stopped = False
+            rospy.loginfo("Started recording rosbag")
             
     def _generate_rosbag_command(self):
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        prefix = f"data-{current_time}"
+        prefix = f"data-{current_time}.bag"
         output_path = os.path.join(self.save_folder, prefix)
-        return shlex.split(f"rosbag record -o {output_path} {self.topics}")
+        rosbag_command = shlex.split(f"rosbag record -o {output_path} {' '.join(self.topics)}")
+        return rosbag_command
         
     def pause_resume_recording(self):
         if self.recording_started:
@@ -90,6 +94,9 @@ class RosbagControlledRecorder(object):
             rospy.logwarn("Recording not yet started - nothing to be done")
 
     def stop_recording(self):
+        if self.recording_stopped:
+            rospy.logwarn("Recording has already Stopped - nothing to be done")
+            return
         if self.process_pid is not None:
             if self.recording_paused:  # need to resume process in order to cleanly kill it
                 self.pause_resume_recording()
@@ -99,7 +106,7 @@ class RosbagControlledRecorder(object):
                 rospy.logwarn("List of pause and resume times:\n%s\n", format_to_columns(pause_resume_str, 2))
             signal_process_and_children(self.process_pid, signal.SIGINT, wait=True)
             self.process_pid = None
-            rospy.logwarn("Stopped recording rosbag")
+            rospy.loginfo("Stopped recording rosbag")
         self.recording_started = False
         self.recording_stopped = True
 

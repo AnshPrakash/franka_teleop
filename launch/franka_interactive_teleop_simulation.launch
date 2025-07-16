@@ -126,7 +126,8 @@
   <include file="$(find franka_interactive_controllers)/launch/passiveDS_impedance_controller.launch" if="$(eval arg('controller') == 'passiveDS_impedance_controller')">
   </include>
 
-  <node pkg="franka_teleop" type="oculus_reader.py" name="oculus_reader" output="screen" />
-  <node pkg="franka_teleop" type="teleop_quest.py" name="franka_teleop" output="screen" />
+
+  <!-- <node pkg="franka_teleop" type="oculus_tranforms_vrpolicy.py" name="oculus_reader" output="screen" required="true" />
+  <node pkg="franka_teleop" type="teleop_quest.py" name="franka_teleop" output="screen" required="true" /> -->
 
 </launch>

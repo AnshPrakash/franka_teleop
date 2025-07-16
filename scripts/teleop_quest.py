@@ -372,10 +372,8 @@ class Teleop():
 
             while self.teleop_on == True:
                 # Start recordor if not started otherwise it will do nothing and keep recording
-                self.recorder.start_recording()
-                if self.teleop_on == False:
-                    # Stop recording when Teleop is switched off by the controller
-                    self.recorder.stop_recording()
+                if not self.recorder.recording_started:
+                    self.recorder.start_recording()
             # To start or stop the teleop, home button in the vr controller must be pressed
 
                 # Just printing some stuff
@@ -449,6 +447,9 @@ class Teleop():
                 last_quest_position, last_quest_rotation = self.get_pose_info(self.quest_last_pose)
 
                 self.rate.sleep()
+            if not self.teleop_on and not self.recorder.recording_stopped:
+                # Stop recording when Teleop is switched off by the controller
+                self.recorder.stop_recording()
 
 
 

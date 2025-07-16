@@ -1,6 +1,6 @@
 # List of topics to be recored along with the type
 
-save_folder: /home/data_collection/data
+save_folder: /opt/ros_ws/src/data_collection/
 
 topics:
   - /oculus/my_right_controller_1_Pose : Pose
