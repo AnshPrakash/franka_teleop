@@ -123,6 +123,7 @@ def main():
     oculus_reader : OculusReaderVRPolicy = OculusReaderVRPolicy()
     control_buttons = ["A", "B", "RTr", "RG", "rightJS"]
     rospy.init_node('oculus_reader')
+    rospy.loginfo("Oculus Publisher started")
 
     while not rospy.is_shutdown():
         rospy.sleep(0.001)

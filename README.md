@@ -54,6 +54,30 @@ apt update
 apt install android-tools-adb
 ```
 
+### Install dependencies:
+```
+pip install hydra-core omegaconf
+```
+
+### Adjust recording Config for your usecase:
+
+update the following yaml => `/opt/ros_ws/src/franka_teleop/config/recorder.yaml`
+
+```
+# List of topics to be recored along with the type
+
+save_folder: <location of data> keep in mind this is within the docker container, so don't forgot to mount it
+
+topics:
+  - <topic name1> : <type1>
+  - <topic_name2>: <type2>
+  ...
+  ...
+```
+
+
+
+
 ## 1. Start Franka controllers
 ### Simulation
 If you haven't already, launch the simulation with the controllers. You need to have the package `franka_zed_gazebo` to launch in simulation (the launch file is getting the world and the robot description from that package)

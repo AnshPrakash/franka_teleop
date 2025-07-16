@@ -14,6 +14,10 @@ from sensor_msgs.msg import JointState, Joy
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from std_srvs.srv import Trigger, TriggerResponse
 
+# Config
+import hydra
+from omegaconf import DictConfig
+
 # Franka
 from franka_msgs.msg import FrankaState
 
@@ -27,6 +31,7 @@ from tf.transformations import quaternion_matrix, quaternion_from_matrix, euler_
 # Functions from scripts
 from util import go_to, attempt_to_go_to_joints
 from grasping import Gripper
+from RosbagControlledRecorder import RosbagControlledRecorder
 
 
 # Macro variables (ideally set them as arguments for python script when done with the coding)
@@ -44,7 +49,7 @@ class Oculus_button(enum.Enum):
 
 class Teleop():
 
-    def __init__(self):
+    def __init__(self, cfg: DictConfig):
         ############## Start ROS Node ###################
         rospy.init_node('franka_teleop')
 
@@ -87,6 +92,13 @@ class Teleop():
 
         ############## TF ###############################
         self.tf_listener = tf.TransformListener()
+
+        ############# Recorder #########################
+        topics_only = [list(item.keys())[0] for item in cfg.topics]
+        self.recorder = RosbagControlledRecorder(
+            save_folder=cfg.save_folder,
+            topics=topics_only
+            )
 
     ################################# ROS callback funnctions #####################################################
     def quest_pose_cb(self, msg):
@@ -359,6 +371,9 @@ class Teleop():
 
 
             while self.teleop_on == True:
+                # Start recordor if not started otherwise it will do nothing and keep recording
+                if not self.recorder.recording_started:
+                    self.recorder.start_recording()
             # To start or stop the teleop, home button in the vr controller must be pressed
 
                 # Just printing some stuff
@@ -432,14 +447,20 @@ class Teleop():
                 last_quest_position, last_quest_rotation = self.get_pose_info(self.quest_last_pose)
 
                 self.rate.sleep()
+            if not self.teleop_on and not self.recorder.recording_stopped:
+                # Stop recording when Teleop is switched off by the controller
+                self.recorder.stop_recording()
 
 
 
 
-if __name__ == '__main__':
-    teleop = Teleop()
+@hydra.main(version_base=None, config_path="/opt/ros_ws/src/franka_teleop/config", config_name="recorder.yaml")
+def main(cfg: DictConfig):
+    # Initialize Teleop with config parameters
+    teleop = Teleop(cfg)
     teleop.startup_procedure()
     teleop.run()
-    
 
+if __name__ == "__main__":
+    main()
 
