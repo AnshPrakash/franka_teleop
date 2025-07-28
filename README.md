@@ -75,6 +75,11 @@ topics:
   ...
 ```
 
+### Build franka_teleop
+```
+cd /opt/ros_ws/
+catkin_make
+```
 
 
 
