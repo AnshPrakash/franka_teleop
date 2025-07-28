@@ -9,3 +9,6 @@ topics:
   - /cartesian_impedance_controller/desired_pose: PoseStamped
   - /cartesian_impedance_controller/desired_gripper_state: PointStamped
 
+video_topics:
+  - /zedA/zed_node_A/left/image_rect_color : video
+  - /zedB/zed_node_B/left/image_rect_color : video
