@@ -8,6 +8,9 @@
 
   <param name="robot_description" command="$(find xacro)/xacro $(find franka_description)/robots/$(arg robot)/$(arg robot).urdf.xacro hand:=$(arg load_gripper) arm_id:=$(arg arm_id) $(arg xacro_args)"/>
 
+  <!-- Bring up the camera Topic publisher -->
+  <include file="$(find zed_multicamera_example)/launch/zed_multi_cam.launch"> </include>
+
   <include file="$(find franka_gripper)/launch/franka_gripper.launch" if="$(arg load_gripper)">
     <arg name="robot_ip" value="$(arg robot_ip)" />
     <arg name="arm_id"   value="$(arg arm_id)" />

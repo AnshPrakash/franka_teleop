@@ -32,6 +32,9 @@
                 -J $(arg arm_id)_finger_joint2 0.001"
        />
 
+  <!-- Bring up the camera Topic publisher -->
+  <include file="$(find zed_multicamera_example)/launch/zed_multi_cam.launch"> </include>
+  
   <include file="$(find gazebo_ros)/launch/empty_world.launch" if="$(arg gazebo)">
     <arg name="world_name" value="$(find franka_zed_gazebo)/worlds/ias_lab_table.world"/>
     <!-- Always start in paused mode, and only unpause when spawning the model -->

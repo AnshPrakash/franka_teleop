@@ -105,6 +105,7 @@ class Teleop():
             self.video_recorder = RosbagControlledRecorder(
                 save_folder=cfg.save_folder,
                 topics=video_topics_only,
+                is_video=True,
                 complementary_recorder=self.recorder
                 )
             
