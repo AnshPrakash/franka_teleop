@@ -137,7 +137,8 @@ class Teleop():
             self.gripper_open = not self.gripper_open
 
         # Add logic for moving the robot home
-        if self.quest_pad_button == 0 and button_data.buttons[Oculus_button.RTr.value] == 1:
+        # Switch off teleOp to allow for moving to home position
+        if self.quest_pad_button == 0 and button_data.buttons[Oculus_button.RTr.value] == 1 and not self.teleop_on:
             self.move_home()     
 
         # Storing button states
