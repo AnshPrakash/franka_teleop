@@ -78,8 +78,18 @@ topics:
 ### Build franka_teleop
 ```
 cd /opt/ros_ws/
-catkin_make
+catkin_make -DFranka_DIR=/opt/libfranka/build/
 ```
+
+### Troubleshooting
+
+UDP timeout error
+
+```
+sudo iptables -I INPUT 1 -s <robot-ip> -j ACCEPT
+```
+
+
 
 
 
