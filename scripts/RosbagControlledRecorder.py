@@ -15,12 +15,13 @@ Note that pausing does not modify the recorded time of messages, i.e. the bag's 
   pause-resume times is logged when stopping, in case the paused period needs to be (manually) removed afterwards.
 If this node is killed recording is also stopped. If recording was paused, it is momentarily resumed before stopping.
 """
-
+from __future__ import annotations
 import psutil
 import subprocess
 import shlex
 import signal
-from __future__ import annotations
+import shutil
+
 
 import rospy
 from std_srvs.srv import Empty, EmptyResponse
@@ -67,7 +68,10 @@ class RosbagControlledRecorder(object):
         self.commands = None
         self.is_video = is_video
         self.complementary_recorder = complementary_recorder # so current recorder of different types can use the same folder as this recorder
-        self.data_folder:str = None 
+        self.data_folder:str = None
+        
+        if not self.topics:
+            raise ValueError("No topics provided for recording.")
         
         
         
@@ -77,7 +81,7 @@ class RosbagControlledRecorder(object):
             rospy.logwarn("Recording has already started - nothing to be done")
         else:
             self.commands, self.data_folder = self._generate_command()
-            processes = [subprocess.Popen(command,cwd=cwd) for command, cwd in self.commands]
+            processes = [subprocess.Popen(command,cwd=cwd, preexec_fn=os.setsid) for command, cwd in self.commands]
             self.process_pids = [ process.pid for process in processes ]
             self.recording_started = True
             self.recording_stopped = False
@@ -85,7 +89,7 @@ class RosbagControlledRecorder(object):
             
     def _generate_command(self):
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        prefix = f"data-{current_time}.bag"
+        
         if self.complementary_recorder and not self.complementary_recorder.data_folder:
             raise Exception("Start recording of the complementary recording first")
         data_folder = (
@@ -93,22 +97,21 @@ class RosbagControlledRecorder(object):
             if self.complementary_recorder
             else os.path.join(self.save_folder, f"data-{current_time}") )
         
-
         os.makedirs(data_folder, exist_ok=True)
         if self.is_video:
             # For each video topic create a video sub-folder
             # required for storing imtermediate frames
             commands = []
-            for topic_i in range(len(self.topics)):
+            for topic_i in self.topics:
                 intermediate_folder = os.path.join(data_folder,f"tmp_{topic_i.replace('/','_')}")
                 os.makedirs( intermediate_folder, exist_ok=True)
-                commands.append( [
-                    shlex.split(f"rosrun image_view extract_images image:={topic_i} _image_transport:=raw"),
-                    intermediate_folder] )
-
+                commands.append( (
+                    shlex.split(f"rosrun image_view extract_images image:={topic_i} _image_transport:=raw __name:=my_image_extractor_{topic_i.replace('/','_')}"),
+                    intermediate_folder) )
         else:
+            prefix = f"data-{current_time}.bag"
             output_path = os.path.join(data_folder, prefix)
-            commands = [shlex.split(f"rosbag record -o {output_path} {' '.join(self.topics)}"), None]
+            commands = [(shlex.split(f"rosbag record -o {output_path} {' '.join(self.topics)}"), None)]
         return commands, data_folder
         
     def pause_resume_recording(self):
@@ -131,34 +134,51 @@ class RosbagControlledRecorder(object):
         if self.recording_stopped:
             rospy.logwarn("Recording has already Stopped - nothing to be done")
             return
-        if self.process_pid is not None:
+        if self.process_pids is not None:
             if self.recording_paused:  # need to resume process in order to cleanly kill it
                 self.pause_resume_recording()
             if self.pause_resume_times:  # log pause/resume times for user's reference
                 pause_resume_str = map(str, self.pause_resume_times)
                 pause_resume_str[0:0] = ['PAUSE', 'RESUME']
                 rospy.logwarn("List of pause and resume times:\n%s\n", format_to_columns(pause_resume_str, 2))
-            for process_pid in self.process_pids:
-                signal_process_and_children(process_pid, signal.SIGINT, wait=True)
+            
+            if self.is_video:
+                for topic_i in self.topics:
+                    kill_command = shlex.split(f"rosnode kill /my_image_extractor_{topic_i.replace('/','_')}")
+                    subprocess.Popen(kill_command)
+            else:
+                for process_pid in self.process_pids:
+                    signal_process_and_children(process_pid, signal.SIGINT, wait=True)
             self.process_pids = None
             
             if self.is_video:
                 video_processes = []
-                for topic_i in range(len(self.topics)):
-                    # generate a final video file and delete the imtermediate folder containing all frames for each topic
-                    folder_path = os.path.join(self.data_folder,f"""tmp_{topic_i.replace("/","_")}""")
-                    frame_rate = 15 # In Hz
-                    convert_to_video_command = shlex.split(f"ffmpeg -r {frame_rate} -i frame%06d.jpg -c:v libx264 {topic_i.replace('/','_')}.mp4")
-                    video_processes.append(subprocess.Popen(convert_to_video_command))
+                # generate a final video files and delete the imtermediate folders containing all frames for each topic
                 
+                for topic_i in self.topics:
+                    folder_path = os.path.join(self.data_folder,f"tmp_{topic_i.replace('/','_')}")
+                    frame_rate = 15 # In Hz
+                    output_file = os.path.join(self.data_folder,f"{topic_i.replace('/','_').strip('_')}.mp4")
+                    convert_to_video_command = shlex.split(f"ffmpeg -r {frame_rate} -i frame%04d.jpg -c:v libx264 {output_file}")
+                    video_processes.append(subprocess.Popen(convert_to_video_command,cwd=folder_path))
+                
+                # wait for each recording to be converted into videos
                 for process in video_processes:
                     exit_code = process.wait()
                     if exit_code != 0:
-                        rospy.logerr(f"Unable to process the recording failed with exit code {exit_code}")
+                        rospy.logerr(f"Video processing failed with exit code {exit_code}")
                     
-                for topic_i in range(len(self.topics)):
+                for topic_i in self.topics:
+                    folder_path = os.path.join(self.data_folder,f"""tmp_{topic_i.replace("/","_")}""")
                     if os.path.exists(folder_path) and os.path.isdir(folder_path):
-                        os.rmdir(folder_path)
+                        try:
+                            shutil.rmtree(folder_path)
+                        except PermissionError:
+                            rospy.logerr("Permission denied")
+                        except Exception as e:
+                            rospy.logerr(f"Error : {e}")
+                
+                rospy.loginfo(f"Videos saved at {self.data_folder}")
             rospy.loginfo("Stopped recording rosbag")
         self.recording_started = False
         self.recording_stopped = True
