@@ -99,6 +99,16 @@ class Teleop():
             save_folder=cfg.save_folder,
             topics=topics_only
             )
+        
+        if cfg.video_topics is not None:
+            video_topics_only = [list(item.keys())[0] for item in cfg.video_topics]
+            self.video_recorder = RosbagControlledRecorder(
+                save_folder=cfg.save_folder,
+                topics=video_topics_only,
+                is_video=True,
+                complementary_recorder=self.recorder
+                )
+            
 
     ################################# ROS callback funnctions #####################################################
     def quest_pose_cb(self, msg):
@@ -127,7 +137,8 @@ class Teleop():
             self.gripper_open = not self.gripper_open
 
         # Add logic for moving the robot home
-        if self.quest_pad_button == 0 and button_data.buttons[Oculus_button.RTr.value] == 1:
+        # Switch off teleOp to allow for moving to home position
+        if self.quest_pad_button == 0 and button_data.buttons[Oculus_button.RTr.value] == 1 and not self.teleop_on:
             self.move_home()     
 
         # Storing button states
@@ -374,6 +385,7 @@ class Teleop():
                 # Start recordor if not started otherwise it will do nothing and keep recording
                 if not self.recorder.recording_started:
                     self.recorder.start_recording()
+                    self.video_recorder.start_recording() # always after main recorder as it complements the other recorder 
             # To start or stop the teleop, home button in the vr controller must be pressed
 
                 # Just printing some stuff
@@ -450,6 +462,7 @@ class Teleop():
             if not self.teleop_on and not self.recorder.recording_stopped:
                 # Stop recording when Teleop is switched off by the controller
                 self.recorder.stop_recording()
+                self.video_recorder.stop_recording()
 
 
 
