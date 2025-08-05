@@ -9,10 +9,10 @@ You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Int
 ## 0. Docker image
 You can get the current docker image of the environment being used for tests. You can follow the instructions on how to download docker and set up an alias for running a container with the required arguments in this repo: [Docker_env](https://github.com/pearl-robot-lab/Docker_env). Pull a docker image and create a container:
 ```
-docker pull sophiamoyen/franka_teleop:07102024
+docker push levoz/franka_teleop:29072025
 ```
 ```
-docker_run_nvidia --name="franka_teleop" sophiamoyen/franka_teleop:07102024 bash
+docker_run_nvidia --name="franka_teleop" -v <data_collection_folder>:/opt/ros_ws/src/data_collection levoz/franka_teleop:29072025 bash
 ```
 You should now be inside the container. To exit it, just type `exit` in the cmd. From now on, every time you want to enter the container, start it then execute it:
 ```
