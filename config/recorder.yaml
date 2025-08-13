@@ -14,6 +14,7 @@ topics:
   - /franka_state_controller/ee_pose: obs
   - /franka_state_controller/joint_states: obs
 
+save_action: true
 
 video_topics:
   - /zedA/zed_node_A/left/image_rect_color : obs
