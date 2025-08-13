@@ -32,6 +32,7 @@ from tf.transformations import quaternion_matrix, quaternion_from_matrix, euler_
 from util import go_to, attempt_to_go_to_joints
 from grasping import Gripper
 from RosbagControlledRecorder import RosbagControlledRecorder
+from RobomimicRecorder import RobomimicRecorder
 
 
 # Macro variables (ideally set them as arguments for python script when done with the coding)
@@ -108,6 +109,14 @@ class Teleop():
                 is_video=True,
                 complementary_recorder=self.recorder
                 )
+            
+        if cfg.recorder_type == "robomimic":
+            self.video_recorder = None
+            all_topics = [list(item.keys())[0] for item in cfg.video_topics] + [list(item.keys())[0] for item in cfg.topics]
+            self.recoder = RobomimicRecorder(
+                save_folder=cfg.save_folder,
+                topics=all_topics,
+            )
             
 
     ################################# ROS callback funnctions #####################################################
