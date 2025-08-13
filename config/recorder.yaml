@@ -2,6 +2,8 @@
 
 save_folder: /opt/ros_ws/src/data_collection/
 
+recorder_type: robomimic # Options: robomimic | rosbag
+
 topics:
   # - /oculus/my_right_controller_1_Pose : Pose
   # - /oculus/my_right_controller_1/joy: Joy
