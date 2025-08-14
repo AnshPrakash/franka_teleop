@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-Adapted from Sophie's recording script
 
-Node to record a rosbag with start/stop/pause control through service calls.
-Example call:
-    rosrun utilities rosbag_controlled_recording.py _rosbag_command:="rosbag record -o /home/foo/test_bag /bar_topic" _record_from_startup:=false
-Then start/pause/resume/stop can be controlled through:
-    rosservice call /rosbag_controlled_recording/start
-    rosservice call /rosbag_controlled_recording/pause_resume
-    rosservice call /rosbag_controlled_recording/pause_resume
-    rosservice call /rosbag_controlled_recording/stop
-Note that pausing does not modify the recorded time of messages, i.e. the bag's total length is unaffected. A list of
-  pause-resume times is logged when stopping, in case the paused period needs to be (manually) removed afterwards.
-If this node is killed recording is also stopped. If recording was paused, it is momentarily resumed before stopping.
-"""
 from __future__ import annotations
 
 
