@@ -2,19 +2,20 @@
 
 save_folder: /opt/ros_ws/src/data_collection/
 
-recorder_type: robomimic # Options: robomimic | rosbag
+recorder_type: rosbag # Options: robomimic | rosbag
 
 topics:
   # - /oculus/my_right_controller_1_Pose : Pose
   # - /oculus/my_right_controller_1/joy: Joy
-  - /franka_state_controller/franka_states: obs
+  # - /franka_state_controller/franka_states: obs
   - /franka_gripper/joint_states: obs
   - /franka_state_controller/joint_states_desired: obs
   - /franka_state_controller/O_T_EE: obs
   - /franka_state_controller/ee_pose: obs
   - /franka_state_controller/joint_states: obs
   - /cartesian_impedance_controller/desired_pose: action
-  - /cartesian_impedance_controller/desired_gripper_state: action
+  # - /cartesian_impedance_controller/desired_gripper_state: action
+  - /franka_gripper/grasp/goal : action
 
 video_topics:
   - /zedA/zed_node_A/left/image_rect_color : obs
