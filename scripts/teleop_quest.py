@@ -95,6 +95,7 @@ class Teleop():
         self.tf_listener = tf.TransformListener()
 
         ############# Recorder #########################
+        self.recorder_type = cfg.recorder_type
         topics_only = [list(item.keys())[0] for item in cfg.topics]
         self.recorder = RosbagControlledRecorder(
             save_folder=cfg.save_folder,
@@ -113,7 +114,7 @@ class Teleop():
         if cfg.recorder_type == "robomimic":
             self.video_recorder = None
             all_topics = [list(item.keys())[0] for item in cfg.video_topics] + [list(item.keys())[0] for item in cfg.topics]
-            self.recoder = RobomimicRecorder(
+            self.recorder = RobomimicRecorder(
                 save_folder=cfg.save_folder,
                 topics=all_topics,
             )
@@ -394,9 +395,11 @@ class Teleop():
                 # Start recordor if not started otherwise it will do nothing and keep recording
                 if not self.recorder.recording_started:
                     self.recorder.start_recording()
-                    self.video_recorder.start_recording() # always after main recorder as it complements the other recorder 
-            # To start or stop the teleop, home button in the vr controller must be pressed
-
+                    if self.video_recorder:
+                        self.video_recorder.start_recording() # always after main recorder as it complements the other recorder 
+                # To start or stop the teleop, home button in the vr controller must be pressed
+                if self.recorder_type == "robomimic":
+                    self.recorder.snap()
                 # Just printing some stuff
                 trans_EE, rot_EE = self.get_NE_pose()                                   # Get current EE pose
                 print("EE position:", trans_EE)
@@ -471,7 +474,8 @@ class Teleop():
             if not self.teleop_on and not self.recorder.recording_stopped:
                 # Stop recording when Teleop is switched off by the controller
                 self.recorder.stop_recording()
-                self.video_recorder.stop_recording()
+                if self.video_recorder:
+                    self.video_recorder.stop_recording()
 
 
 
