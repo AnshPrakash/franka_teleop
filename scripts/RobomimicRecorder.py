@@ -20,7 +20,7 @@ def format_to_columns(input_list, cols):
     return '\n'.join(lines)
 
 
-class RobomimicControlledRecorder(object):
+class RobomimicRecorder(object):
     """Record a rosbag with service calls to control start, stop and pause"""
 
     def __init__(self, save_folder, topics):
