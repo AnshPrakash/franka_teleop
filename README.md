@@ -9,7 +9,7 @@ You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Int
 ## 0. Docker image
 You can get the current docker image of the environment being used for tests. You can follow the instructions on how to download docker and set up an alias for running a container with the required arguments in this repo: [Docker_env](https://github.com/pearl-robot-lab/Docker_env). Pull a docker image and create a container:
 ```
-docker push levoz/franka_teleop:29072025
+docker push levoz/franka_teleop:19082025
 ```
 ```
 docker_run_nvidia --name="franka_teleop" -v <data_collection_folder>:/opt/ros_ws/src/data_collection levoz/franka_teleop:29072025 bash
@@ -24,20 +24,10 @@ git remote set-url origin https://github.com/AnshPrakash/franka_teleop.git
 git pull --recurse-submodules
 ```
 
-### Environment Variable
 
-For Oculus & Droid
+## Update Robot IP 
 
-```
-PYTHONPATH=$PYTHONPATH:/opt/ros_ws/src/franka_teleop/oculus_reader/
-PYTHONPATH=$PYTHONPATH:/opt/ros_ws/src/franka_teleop/droid/
-```
-
-For Displaying correctly from docker container
-
-```
-export DISPLAY=:1
-```
+Update the robot IP in the bashrc
 
 
 ### Build & Source
@@ -48,16 +38,6 @@ catkin_make
 source devel/setup.bash
 ```
 
-### Install adb inside docker
-```
-apt update
-apt install android-tools-adb
-```
-
-### Install dependencies:
-```
-pip install hydra-core omegaconf
-```
 
 ### Adjust recording Config for your usecase:
 
@@ -73,6 +53,9 @@ topics:
   - <topic_name2>: <type2>
   ...
   ...
+
+video_topics: If you want to store it as a video
+  - ..
 ```
 
 ### Build franka_teleop
