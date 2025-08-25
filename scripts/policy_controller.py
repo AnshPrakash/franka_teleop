@@ -24,7 +24,7 @@ from tf.transformations import quaternion_matrix, quaternion_from_matrix, euler_
 import threading
 
 
-from util import go_to, attempt_to_go_to_joints
+from util import go_to, attempt_to_go_to_joints, msg_to_numpy
 from grasping import Gripper
 
 class PolicyController:
@@ -43,13 +43,13 @@ class PolicyController:
         self.rate = rospy.Rate(50)     # Setting rate to 50Hz, we will downsample later to target_frequency
         
         self.topics = {
-            "/cartesian_impedance_controller/desired_pose": PoseStamped,
+            # "/cartesian_impedance_controller/desired_pose": PoseStamped,
             "/franka_gripper/joint_states": JointState,
             "/franka_state_controller/O_T_EE": PoseStamped,
-            "/franka_state_controller/ee_pose": Pose,
-            "/franka_state_controller/franka_states": FrankaState,
+            # "/franka_state_controller/ee_pose": Pose,
+            # "/franka_state_controller/franka_states": FrankaState,
             "/franka_state_controller/joint_states": JointState,
-            "/franka_state_controller/joint_states_desired": JointState,
+            # "/franka_state_controller/joint_states_desired": JointState,
             "/zedA/zed_node_A/left/image_rect_color": Image,
             "/zedB/zed_node_B/left/image_rect_color": Image,
         }
@@ -80,8 +80,7 @@ class PolicyController:
     
     
     # Callback factory to capture the topic name and update self.latest_* maps
-    @staticmethod
-    def _make_callback(topic_name):
+    def _make_callback(self, topic_name):
         def _cb(msg):
             try:
                 # Prefer header.stamp if present
@@ -108,14 +107,87 @@ class PolicyController:
         pass
 
 
-    def get_obeservation():
+    def get_obeservation(self):
         """
-            Get the observation from the ROS topic @ target frquency
-            Transforrm into what the policy network expects
+        Get the observation from the ROS topics at the target frequency.
+
+        Wait until ALL topics have a latest observation timestamp >=
+        (self._last_obs_time + 1/self.target_frequency), then return a dict:
+        {
+            'timestamp': float,            # conservative timestamp (min of per-topic times)
+            'data': {topic: np.array or None, ...},
+            'times': {topic: float, ...}
+        }
+
+        No raw ROS messages are returned or stored here — only NumPy arrays via msg_to_numpy.
         """
-        
-        # TODO: No matter the frequency of the ROS topic, we should get the observation at the target frequency(it is always lower than the ROS topic frequency)
-        pass
+        # Validate frequency and compute dt
+        target_freq = self.target_frequency
+        if target_freq is None:
+            rospy.logerr("[PolicyController] Invalid target_frequency")
+            
+        target_dt = 1.0 / float(target_freq)
+        tol = 1e-6
+
+        # Normalize topic list
+        if isinstance(self.topics, dict):
+            topic_names = list(self.topics.keys())
+        else:
+            topic_names = list(self.topics)
+
+        # Compute the threshold we require each topic to exceed
+        wait_threshold = self._last_obs_time + target_dt - tol
+
+        while not rospy.is_shutdown():
+            triggered = False
+            snapshot_msgs = {}
+            snapshot_times = {}
+
+            # Atomically check whether all topics have timestamps >= threshold and snapshot msgs
+            with self._msg_lock:
+                # gather current times (0.0 if never seen)
+                current_times = {t: float(self.latest_times.get(t, 0.0)) for t in topic_names}
+
+                # require every topic to have a non-zero timestamp >= wait_threshold
+                all_ready = all((current_times[t] and (current_times[t] + tol) >= wait_threshold) for t in topic_names)
+
+                if all_ready:
+                    # conservative observation timestamp = min of the available times
+                    triggering_time = min(current_times[t] for t in topic_names)
+                    # snapshot messages and times (deepcopy under lock to avoid races)
+                    snapshot_msgs = {t: copy.deepcopy(self.latest_msgs.get(t)) for t in topic_names}
+                    snapshot_times = {t: float(current_times[t]) for t in topic_names}
+                    # update last accepted observation time
+                    self._last_obs_time = float(triggering_time)
+                    triggered = True
+
+            if triggered:
+                # Convert each snapshot message to numpy array (outside lock)
+                data = {}
+                for t in topic_names:
+                    msg = snapshot_msgs.get(t)
+                    if msg is None:
+                        data[t] = None
+                    else:
+                        try:
+                            data[t] = msg_to_numpy(msg)
+                        except Exception as e:
+                            rospy.logwarn_throttle(10.0, f"[PolicyController] msg_to_numpy failed for {t}: {e}")
+                            data[t] = None
+
+                return {
+                    "timestamp": float(triggering_time),
+                    "data": data,
+                    "times": snapshot_times,
+                }
+
+            # Not ready -> sleep briefly and re-evaluate
+            rospy.sleep(0.005)
+            wait_threshold = self._last_obs_time + target_dt - tol
+
+        # ROS is shutting down
+        return None
+
     
     
     def safety_check(self, action):
