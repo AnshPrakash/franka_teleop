@@ -218,12 +218,114 @@ class PolicyController:
 
     def safety_check(self, action: np.ndarray) -> bool:
         """
-            Check if the action is safe to execute
-            If not, modify the action to be safe
-            and log WARNING
+        Check if the end-effector target position from `action` is inside the allowed task-space.
+        If it's outside, publish a PoseStamped to /policy_controller/target_pose so the user can
+        inspect it in RViz, then pause and prompt the user to continue or abort.
+
+        Returns:
+            bool: True if it is safe (or user approved) to continue, False to abort.
         """
-        # TODO: EE position should be within workspace
-        pass
+        try:
+
+            target_pos = action[0:3]  # [x, y, z]
+
+            # Workspace bounds:
+            # (tweak these sensible defaults to match your robot/setup)
+            workspace_lower = np.array([0.15, -0.6, 0.0], dtype=float)
+            workspace_upper = np.array([0.85,  0.6, 1.0], dtype=float)
+
+
+            # Check if within bounds (inclusive)
+            inside = np.all(target_pos >= workspace_lower) and np.all(target_pos <= workspace_upper)
+
+            if inside:
+                # safe to proceed
+                return True
+
+            # Outside workspace: publish visualization pose so user can inspect it in RViz
+            rospy.logwarn(
+                "[PolicyController] Requested EE target position is OUTSIDE the workspace bounds.\n"
+                f"  target_pos = {target_pos.tolist()}\n"
+                f"  allowed x = [{workspace_lower[0]}, {workspace_upper[0]}], "
+                f"y = [{workspace_lower[1]}, {workspace_upper[1]}], "
+                f"z = [{workspace_lower[2]}, {workspace_upper[2]}]"
+            )
+
+            # Create publisher on first use (latched so RViz can pick it up)
+            if not hasattr(self, "_target_pose_pub"):
+                self._target_pose_pub = rospy.Publisher(
+                    "/policy_controller/target_pose", PoseStamped, queue_size=1, latch=True
+                )
+                # small sleep to allow registration (non-blocking)
+                rospy.sleep(0.05)
+
+            # Build PoseStamped from action (use action orientation if available)
+            pose_msg = PoseStamped()
+            pose_msg.header.stamp = rospy.Time.now()
+            pose_msg.header.frame_id = getattr(self, "base_frame", "world")  # let user override if needed
+
+            # fill position
+            pose_msg.pose.position.x = float(target_pos[0])
+            pose_msg.pose.position.y = float(target_pos[1])
+            pose_msg.pose.position.z = float(target_pos[2])
+
+            # orientation: if action contains euler angles use them, otherwise leave identity
+            if action.size >= 6:
+                try:
+                    quat = self.action_to_ee_quaternion(action)  # expects (x,y,z,w) numpy array
+                    # quaternion_from_euler returns [x, y, z, w]
+                    pose_msg.pose.orientation.x = float(quat[0])
+                    pose_msg.pose.orientation.y = float(quat[1])
+                    pose_msg.pose.orientation.z = float(quat[2])
+                    pose_msg.pose.orientation.w = float(quat[3])
+                except Exception as e:
+                    rospy.logwarn_throttle(5.0, f"[PolicyController] failed to convert Euler->quat for debug pose: {e}")
+                    # leave default orientation (0,0,0,1)
+
+            # publish the debug pose for RViz visualization
+            try:
+                self._target_pose_pub.publish(pose_msg)
+                rospy.loginfo("[PolicyController] Published target pose to /policy_controller/target_pose for inspection in RViz.")
+            except Exception as e:
+                rospy.logwarn(f"[PolicyController] Could not publish target pose: {e}")
+
+            # Pause and ask the user to confirm. Allow ROS shutdown to break out.
+            prompt = (
+                "Action is outside workspace. Inspect target in RViz.\n"
+                "Type 'c' or 'y' to CONTINUE and execute this action anyway, or 'a' or 'n' to ABORT: "
+            )
+
+            # Loop until valid input or ROS shutdown
+            while not rospy.is_shutdown():
+                try:
+                    # Use input() so it works with python3
+                    user = input(prompt).strip().lower()
+                except EOFError:
+                    # In some runtime contexts (no stdin), abort
+                    rospy.logwarn("[PolicyController] No stdin available to confirm safety; aborting action.")
+                    return False
+                except Exception as e:
+                    rospy.logwarn(f"[PolicyController] Input error: {e}; aborting.")
+                    return False
+
+                if user in ("c", "y", "yes", "continue"):
+                    rospy.loginfo("[PolicyController] User approved executing out-of-bounds action.")
+                    return True
+                if user in ("a", "n", "no", "abort"):
+                    rospy.loginfo("[PolicyController] User aborted action due to safety.")
+                    return False
+
+                # otherwise, loop again (invalid answer)
+                rospy.loginfo("Please type 'c' to continue or 'a' to abort.")
+
+            # If rospy is shutting down, abort
+            rospy.loginfo("[PolicyController] rospy shutting down while waiting for safety confirmation -> aborting")
+            return False
+
+        except Exception as e:
+            rospy.logwarn(f"[PolicyController] safety_check exception: {e}; aborting action.")
+            return False
+
     
 
     def get_video_prompt(self):
