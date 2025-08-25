@@ -18,7 +18,7 @@ import copy
 import numpy as np
 import tf
 import time
-from tf.transformations import quaternion_matrix, quaternion_from_matrix, euler_from_matrix, euler_matrix
+from tf.transformations import quaternion_matrix, quaternion_from_matrix, euler_from_matrix, euler_matrix, quaternion_from_euler
 
 # Lock to protect concurrent access to latest messages
 import threading
@@ -188,9 +188,35 @@ class PolicyController:
         # ROS is shutting down
         return None
 
-    
-    
-    def safety_check(self, action):
+        
+    def action_to_ee_quaternion(self, action: np.ndarray):
+        """
+        Convert the action's Euler orientation to an end-effector quaternion.
+
+        Expected action layout (for EE part):
+            [ x, y, z, ox, oy, oz, gripper_open ]
+        where ox, oy, oz are Euler angles (roll, pitch, yaw) in radians.
+
+        Returns:
+            np.ndarray of shape (4,) -> (qx, qy, qz, qw)
+        """
+        if action is None:
+            raise ValueError("action is None")
+
+
+        # Extract Euler angles (roll, pitch, yaw)
+        roll = float(action[3])
+        pitch = float(action[4])
+        yaw = float(action[5])
+
+        # roll, pitch, yaw = map(np.deg2rad, (roll, pitch, yaw))
+        
+        quat = np.asarray(quaternion_from_euler(roll, pitch, yaw), dtype=float) 
+
+        return quat  # (qx, qy, qz, qw)
+
+
+    def safety_check(self, action: np.ndarray) -> bool:
         """
             Check if the action is safe to execute
             If not, modify the action to be safe
