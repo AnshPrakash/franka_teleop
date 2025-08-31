@@ -26,6 +26,7 @@ import threading
 
 from util import go_to, attempt_to_go_to_joints, msg_to_numpy
 from grasping import Gripper
+from RosbagControlledRecorder import RosbagControlledRecorder
 
 class PolicyController:
     def __init__(self, target_frequency: float = 11):
@@ -75,6 +76,31 @@ class PolicyController:
                 rospy.loginfo_throttle(30.0, f"[PolicyController] Subscribed to {topic_name} as {msg_type.__name__}")
             except Exception as e:
                 rospy.logwarn_throttle(30.0, f"[PolicyController] Failed to subscribe to {topic_name} ({msg_type}): {e}")
+                                
+        ############## Publishers #######################
+        self.pub = rospy.Publisher('/cartesian_impedance_controller/desired_pose', PoseStamped, queue_size=0)
+        self.pub_gripper = rospy.Publisher('/cartesian_impedance_controller/desired_gripper_state', PointStamped, queue_size=0)
+
+        ############## TF ###############################
+        self.tf_listener = tf.TransformListener()
+
+        ############# Recorder #########################
+        
+        ## For recording our results
+        
+        video_topics_only = [
+            "/zedA/zed_node_A/left/image_rect_color", 
+            "/zedB/zed_node_B/left/image_rect_color"
+            ]
+        
+        save_folder = "eval_recordings"
+        self.video_recorder = RosbagControlledRecorder(
+            save_folder=save_folder,
+            topics=video_topics_only,
+            is_video=True,
+            complementary_recorder=None
+            )
+        
 
         rospy.loginfo("[PolicyController] Initialization complete. Topics subscribed: " + ", ".join(self.topics.keys()))
     
@@ -103,7 +129,7 @@ class PolicyController:
         return _cb
 
 
-    def select_action(self, observation):
+    def get_action(self, observation):
         pass
 
 
