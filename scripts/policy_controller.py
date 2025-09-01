@@ -354,17 +354,27 @@ class PolicyController:
 
     
 
-    def get_video_prompt(self):
+    def get_video_prompt(self) -> tuple[np.ndarray, np.ndarray]:
         """
             Get the video prompt from the human
+            and Return the action guidance and latent plan
         """
         pass
     
+    
+    def check_over(self):
+        """
+            Check if the task is over
+            if the robot has reached the goal and opened the gripper
+        """
+        pass
     
     def run(self):
         """
             Main loop to run the policy controller
             Get observation -> Select action -> Execute action
+            Get the video prompt from the human
+            Also resets after every evaluation
         """
         while not rospy.is_shutdown():
             #TODO: 
