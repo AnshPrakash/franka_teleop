@@ -128,7 +128,129 @@ class PolicyController:
                 rospy.logwarn_throttle(10.0, f"[PolicyController] callback error for {topic_name}: {e}")
         return _cb
 
+        ############################################### Desired pose/state functions ############################################
+    def publish_eef_target(self, pos, quat):
+        # Receives position and quaternion and converts to PoseStamped message (the one used for publishing the target pose)
+        msg = PoseStamped()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = 'panda_link0'
 
+        msg.pose.position.x = pos[0]
+        msg.pose.position.y = pos[1]
+        msg.pose.position.z = pos[2]
+
+        msg.pose.orientation.x = quat[0]
+        msg.pose.orientation.y = quat[1]
+        msg.pose.orientation.z = quat[2]
+        msg.pose.orientation.w = quat[3]
+
+        # then apply the action!
+        self.pub.publish(msg)
+
+    def publish_gripper_target(self, gripper_action):
+        # publish desired gripper state
+        msg_gripper = PointStamped()
+        msg_gripper.header.stamp = rospy.Time.now()
+        msg_gripper.point.x = gripper_action
+
+        self.pub_gripper.publish(msg_gripper)
+
+    ############################################# ROS controllers functions #############################################
+
+    def list_controllers(self):
+        rospy.wait_for_service("/controller_manager/list_controllers")
+        list_controllers = rospy.ServiceProxy("/controller_manager/list_controllers", ListControllers)
+        return (list_controllers())
+
+    def load_controller(self, controller_name):
+        rospy.wait_for_service("/controller_manager/load_controller")
+        load_controller = rospy.ServiceProxy("/controller_manager/load_controller", LoadController)
+        load_controller(controller_name)
+
+    def unload_controller(self, controller_name):
+        rospy.wait_for_service("/controller_manager/unload_controller")
+        unload_controller = rospy.ServiceProxy("/controller_manager/unload_controller", UnloadController)
+        unload_controller(controller_name)
+
+    def switch_controller(self, start_controllers, stop_controllers):
+        rospy.wait_for_service("/controller_manager/switch_controller")
+        switch_controller = rospy.ServiceProxy("/controller_manager/switch_controller", SwitchController)
+        switch_controller(start_controllers, stop_controllers, 0, False, 0.0)
+
+
+    ############################################ Robot motion scripts ###############################################
+    def startup_procedure(self, desired_joint_config=None, initial_config_pose=None):
+        """
+        Load firstly the effort_joint_trajectory_controller to go to standard pose and then switches to
+        cartesian_pose_impedance_controller for teleoperation
+        """
+
+        self.cartesian_pose_impedance_controller_loaded = False
+        self.cartesian_pose_impedance_controller_running = False
+
+        self.effort_joint_trajectory_controller_loaded = False
+        self.effort_joint_trajectory_controller_running = False
+
+        list_controller_res = self.list_controllers()
+        for i in range(len(list_controller_res.controller)):
+            if (list_controller_res.controller[i].name == "cartesian_pose_impedance_controller"):
+                self.cartesian_pose_impedance_controller_loaded = True
+                if (list_controller_res.controller[i].state == "running"):
+                    self.cartesian_pose_impedance_controller_running = True
+
+            if (list_controller_res.controller[i].name == "effort_joint_trajectory_controller"):
+                self.effort_joint_trajectory_controller_loaded = True
+                if (list_controller_res.controller[i].state == "running"):
+                    self.effort_joint_trajectory_controller_running = True
+
+
+        action = rospy.resolve_name('effort_joint_trajectory_controller/follow_joint_trajectory')
+        client = SimpleActionClient(action, FollowJointTrajectoryAction)
+        rospy.loginfo("move_to_start: Waiting for '" + action + "' action to come up")
+        client.wait_for_server()
+
+        topic = rospy.resolve_name('franka_state_controller/joint_states')
+        rospy.loginfo("move_to_start: Waiting for message on topic '" + topic + "'")
+        joint_state = rospy.wait_for_message(topic, JointState)
+        initial_pose = dict(zip(joint_state.name, joint_state.position))
+
+        # Open gripper first
+        action_result = self.gripper.move(0.04, 0.04) 
+        if action_result == True:
+            print("Gripper opened succesfully")
+            self.gripper_open = True
+        else:
+            print("Gripper failed to open")
+
+        if not(self.cartesian_pose_impedance_controller_loaded and self.effort_joint_trajectory_controller_running):
+            time.sleep(0.5)
+            # if we do not start up for the first time - we first need to switch back!
+            self.switch_controller(["effort_joint_trajectory_controller"], ["cartesian_pose_impedance_controller"])
+
+        if (desired_joint_config is None):
+            desired_joint_config = np.array([0.004286136549292948, 0.23023615878924988, -0.003981800034836296, -1.7545947008261213,
+                                             0.0032928755527341326, 1.994446315732633, 0.7839058620188021])
+
+        attempt_to_go_to_joints(client, topic, desired_joint_config, duration=5)
+
+        # After moving to the desired pose, switch the controller to the pose impedance controller
+        if not(self.cartesian_pose_impedance_controller_loaded):
+            self.load_controller("cartesian_pose_impedance_controller")
+            time.sleep(0.5)
+
+        self.switch_controller(["cartesian_pose_impedance_controller"], ["effort_joint_trajectory_controller"])
+
+    def move_home(self):
+        # Disabling teleop
+        self.teleop_on = False
+
+        self.switch_controller(["effort_joint_trajectory_controller"], ["cartesian_pose_impedance_controller"])
+        time.sleep(0.5)
+        # then we can execute the normal go home move
+        self.startup_procedure()
+
+    ############################################# MimicPlay Model functions #############################################
+    
     def get_action(self, observation):
         pass
 
@@ -362,10 +484,13 @@ class PolicyController:
         pass
     
     
-    def check_over(self):
+    def check_over(self, action_guidance) -> bool:
         """
             Check if the task is over
             if the robot has reached the goal and opened the gripper
+            Goal is estimated from the action guidance
+            And ask the user to confirm
+            Returns True if the task is over, False otherwise
         """
         pass
     
@@ -377,8 +502,43 @@ class PolicyController:
             Also resets after every evaluation
         """
         while not rospy.is_shutdown():
-            #TODO: 
-            pass
+            # Get latent prompt from human video
+            action_guidance, latent_plan = self.get_video_prompt()
+            policy_controller_run = True
+            # Keep running until it reaches the goal and opens the gripper
+            while policy_controller_run:
+                # Get observation
+                obs = self.get_obeservation()
+                
+                action = self.get_action(obs)
+                
+                quat_action = action[3:7]
+                
+                # Safety check
+                if not self.safety_check(action):
+                    rospy.loginfo("[PolicyController] Action aborted by safety check.")
+                    policy_controller_run = False
+                    continue
+                
+                target_ee_pos = action[0:3]
+                target_ee_ori = quat_action
+                
+                self.publish_eef_target(target_ee_pos, target_ee_ori)
+                if self.check_over(action_guidance):
+                    rospy.loginfo("[PolicyController] Task completed successfully.")
+                    policy_controller_run = False
+                    continue
+                
+                self.rate.sleep()
+                
+            rospy.loginfo("[PolicyController] Resetting for next evaluation.")
+            
+            # Reset the environment
+            
+            self.move_home()
+            
+            rospy.sleep(2.0)
+        
     
     
         
