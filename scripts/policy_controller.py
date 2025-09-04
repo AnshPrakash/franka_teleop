@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 from franka_msgs.msg import FrankaState
 
 # General
+import argparse
 import copy
 import numpy as np
 import tf
@@ -36,7 +37,7 @@ import robomimic.utils.tensor_utils as TensorUtils
 import robomimic.utils.obs_utils as ObsUtils
 
 class PolicyController:
-    def __init__(self, ckpt_path: str, video_prompt_path: str, target_frequency: float = 11):
+    def __init__(self, ckpt_path: str, video_prompt_path: str, target_frequency: float = 13):
         """
             Initialize the PolicyController
             Subscribe to the ROS topic for observations
@@ -598,9 +599,35 @@ class PolicyController:
     
         
 
-@hydra.main(version_base=None, config_path="/opt/ros_ws/src/mimic_play/config", config_name="mimic_play_recorder.yaml")
-def main(cfg: DictConfig):
-    pass
-
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+
+    # Path to trained model
+    parser.add_argument(
+        "--agent",
+        type=str,
+        required=True,
+        help="path to saved checkpoint pth file",
+    )
+    
+    parser.add_argument(
+        "--video_prompt",
+        type=str,
+        required=True,
+        default=None,
+        help="a task video prompt is loaded and used in the evaluation rollouts",
+    )
+    
+    parser.add_argument(
+        "--target_frequency",
+        type=float,
+        required=False,
+        default=13.0,
+        help="target frequency (Hz) for policy actions (default: 13.0)",
+    )
+    
+
+    args = parser.parse_args()
+    policy_controller = PolicyController(ckpt_path=args.agent, video_prompt_path=args.video_prompt, target_frequency=args.target_frequency)
+    policy_controller.run()
+    
