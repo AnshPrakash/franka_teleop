@@ -99,6 +99,10 @@ class PolicyController:
         ############## Publishers #######################
         self.pub = rospy.Publisher('/cartesian_impedance_controller/desired_pose', PoseStamped, queue_size=0)
         self.pub_gripper = rospy.Publisher('/cartesian_impedance_controller/desired_gripper_state', PointStamped, queue_size=0)
+        
+        ############## Gripper #########################
+        self.gripper = Gripper()
+        self.gripper_open = False
 
         ############## TF ###############################
         self.tf_listener = tf.TransformListener()
@@ -123,7 +127,9 @@ class PolicyController:
         self.ckpt_path = ckpt_path
         self.video_prompt = video_prompt_path
         self.init_policy()
-
+        
+        self.startup_procedure()
+        
         rospy.loginfo("[PolicyController] Initialization complete. Topics subscribed: " + ", ".join(self.topics.keys()))
     
     
@@ -540,7 +546,7 @@ class PolicyController:
             return False
 
     
-    def check_over(self, action_guidance) -> bool:
+    def check_over(self) -> bool:
         """
             Check if the task is over
             if the robot has reached the goal and opened the gripper
@@ -548,6 +554,10 @@ class PolicyController:
             And ask the user to confirm
             Returns True if the task is over, False otherwise
         """
+        
+        
+        
+        
         pass
     
     def run(self):
@@ -577,8 +587,32 @@ class PolicyController:
                 
                 target_ee_pos = action[0:3]
                 target_ee_ori = quat_action
+                gripper_action = np.sign(action[7])   # 1.0 close, -1.0 open
                 
                 self.publish_eef_target(target_ee_pos, target_ee_ori)
+                
+                
+                if gripper_action == 1.0 and self.gripper_open:
+                    result_grasp = False
+                    while not result_grasp:
+                        result_grasp = self.gripper.grasp()
+                        if result_grasp == True:
+                            self.gripper_open = False
+                            print("Gripper was successfully closed")
+                        else:
+                            print("Gripper failed to close, retrying...")
+                            time.sleep(0.5)
+                elif gripper_action == -1.0 and not self.gripper_open:
+                    result_release = False
+                    while not result_release:
+                        result_release = self.gripper.move(0.04, 0.04)
+                        if result_release == True:
+                            self.gripper_open = True
+                            print("Gripper was successfully opened")
+                        else:
+                            print("Gripper failed to open, retrying...")
+                            time.sleep(0.5)
+                
                 if self.check_over():
                     rospy.loginfo("[PolicyController] Task completed successfully.")
                     policy_controller_run = False
