@@ -127,6 +127,7 @@ class PolicyController:
 
         # restore policy
         policy, ckpt_dict = FileUtils.policy_from_checkpoint(ckpt_path=ckpt_path, device=device, verbose=False)
+        # get video prompt
         policy.policy.load_eval_video_prompt(video_prompt)
         
         self.policy = policy
@@ -508,15 +509,6 @@ class PolicyController:
             rospy.logwarn(f"[PolicyController] safety_check exception: {e}; aborting action.")
             return False
 
-    
-
-    def get_video_prompt(self) -> tuple[np.ndarray, np.ndarray]:
-        """
-            Get the video prompt from the human
-            and Return the action guidance and latent plan
-        """
-        pass
-    
     
     def check_over(self, action_guidance) -> bool:
         """
