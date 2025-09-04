@@ -28,8 +28,15 @@ from util import go_to, attempt_to_go_to_joints, msg_to_numpy
 from grasping import Gripper
 from RosbagControlledRecorder import RosbagControlledRecorder
 
+
+# Mimicplay policy imports
+import mimicplay.utils.file_utils as FileUtils
+import robomimic.utils.torch_utils as TorchUtils
+import robomimic.utils.tensor_utils as TensorUtils
+import robomimic.utils.obs_utils as ObsUtils
+
 class PolicyController:
-    def __init__(self, target_frequency: float = 11):
+    def __init__(self, ckpt_path: str, video_prompt_path: str, target_frequency: float = 11):
         """
             Initialize the PolicyController
             Subscribe to the ROS topic for observations
@@ -101,9 +108,30 @@ class PolicyController:
             complementary_recorder=None
             )
         
+        self.ckpt_path = ckpt_path
+        self.video_prompt = video_prompt_path
+        self.init_policy()
 
         rospy.loginfo("[PolicyController] Initialization complete. Topics subscribed: " + ", ".join(self.topics.keys()))
     
+    
+    def init_policy(self):
+        """
+            Initialize the policy network
+        """
+        ckpt_path = self.ckpt_path
+        video_prompt = self.video_prompt
+
+        # device
+        device = TorchUtils.get_torch_device(try_to_use_cuda=True)
+
+        # restore policy
+        policy, ckpt_dict = FileUtils.policy_from_checkpoint(ckpt_path=ckpt_path, device=device, verbose=False)
+        policy.policy.load_eval_video_prompt(video_prompt)
+        
+        self.policy = policy
+        self.device = device
+
     
     # Callback factory to capture the topic name and update self.latest_* maps
     def _make_callback(self, topic_name):
@@ -251,8 +279,14 @@ class PolicyController:
 
     ############################################# MimicPlay Model functions #############################################
     
-    def get_action(self, observation):
-        pass
+    def get_action(self, observation_dict: dict) -> np.ndarray:
+        """
+            Get the action from the policy network (RolloutPolicy)
+            Input: observation_dict
+            Output: action as a numpy array (Mean action of the action distribution)
+        """
+        act = self.policy.get_action(ob=observation_dict, goal=None)
+        return act 
 
 
     def get_obeservation(self):
