@@ -62,6 +62,17 @@ class PolicyController:
             "/zedB/zed_node_B/left/image_rect_color": Image,
         }
         
+        self.topics_to_obs_keys = {
+                "/franka_state_controller/ee_pose": "ee_pose",
+                "/franka_gripper/joint_states": "gripper_joint_states" ,
+                "/franka_state_controller/joint_states_desired": "joint_states_desired",
+                "/franka_state_controller/O_T_EE": ["robot0_eef_pos", "robot0_eef_quat"], # Will result in two keys
+                "/franka_state_controller/joint_states": "joint_states",
+                "/zedA/zed_node_A/left/image_rect_color": "agentview_image",  # front camera
+                "/zedB/zed_node_B/left/image_rect_color": "agentview_image_2" # back camera,
+        }
+        
+        
         self._msg_lock = threading.Lock()
         
         # Storage for the latest message and its timestamp (seconds) for each topic
@@ -157,7 +168,7 @@ class PolicyController:
                 rospy.logwarn_throttle(10.0, f"[PolicyController] callback error for {topic_name}: {e}")
         return _cb
 
-        ############################################### Desired pose/state functions ############################################
+    ############################################### Desired pose/state functions ############################################
     def publish_eef_target(self, pos, quat):
         # Receives position and quaternion and converts to PoseStamped message (the one used for publishing the target pose)
         msg = PoseStamped()
@@ -287,10 +298,11 @@ class PolicyController:
             Output: action as a numpy array (Mean action of the action distribution)
         """
         act = self.policy.get_action(ob=observation_dict, goal=None)
+        # act : [x, y, z, ox, oy, oz, ow,  gripper_state]
         return act 
 
 
-    def get_obeservation(self):
+    def get_observation(self):
         """
         Get the observation from the ROS topics at the target frequency.
 
@@ -349,14 +361,31 @@ class PolicyController:
                 data = {}
                 for t in topic_names:
                     msg = snapshot_msgs.get(t)
+                    obs_key = self.topics_to_obs_keys.get(t)
+                    
                     if msg is None:
-                        data[t] = None
+                        if isinstance(obs_key, list):
+                            for k in obs_key:
+                                data[k] = None
+                        else:
+                            data[obs_key] = None
                     else:
+                        
                         try:
-                            data[t] = msg_to_numpy(msg)
+                            if t == "/franka_state_controller/O_T_EE":
+                                # Special handling to split into pos and quat
+                                numpy_data = msg_to_numpy(msg)
+                                data["robot0_eef_pos"] = numpy_data[:3]
+                                data["robot0_eef_quat"] = numpy_data[3:]
+                            else:
+                                data[obs_key] = msg_to_numpy(msg)
                         except Exception as e:
                             rospy.logwarn_throttle(10.0, f"[PolicyController] msg_to_numpy failed for {t}: {e}")
-                            data[t] = None
+                            if isinstance(obs_key, list):
+                                for k in obs_key:
+                                    data[k] = None
+                            else:
+                                data[obs_key] = None
 
                 return {
                     "timestamp": float(triggering_time),
@@ -529,12 +558,11 @@ class PolicyController:
         """
         while not rospy.is_shutdown():
             # Get latent prompt from human video
-            action_guidance, latent_plan = self.get_video_prompt()
             policy_controller_run = True
             # Keep running until it reaches the goal and opens the gripper
             while policy_controller_run:
                 # Get observation
-                obs = self.get_obeservation()
+                obs = self.get_observation()
                 
                 action = self.get_action(obs)
                 
@@ -550,9 +578,10 @@ class PolicyController:
                 target_ee_ori = quat_action
                 
                 self.publish_eef_target(target_ee_pos, target_ee_ori)
-                if self.check_over(action_guidance):
+                if self.check_over():
                     rospy.loginfo("[PolicyController] Task completed successfully.")
                     policy_controller_run = False
+                    # Close everything and save the recording
                     continue
                 
                 self.rate.sleep()
