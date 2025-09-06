@@ -152,6 +152,8 @@ def image_to_numpy(msg):
     """
     img = message_to_cvimage(msg)   # returns numpy ndarray (H,W[,C])
     img = img[..., :3] # Keep only first 3 channels because I don't want alpha
+    # Convert from HWC (Height, Width, Channels) to CHW (Channels, Height, Width)
+    img = np.transpose(img, (2, 0, 1))
     return img
 
 # def grasp_action_goal_to_numpy(msg):
@@ -186,11 +188,18 @@ def msg_to_numpy(msg):
         'geometry_msgs/msg/PoseStamped': pose_stamped_to_numpy,
         'sensor_msgs/msg/JointState': joint_state_to_numpy,
         'sensor_msgs/msg/Image': image_to_numpy,
+        'geometry_msgs/Pose': pose_to_numpy,
+        'geometry_msgs/PoseStamped': pose_stamped_to_numpy,
+        'sensor_msgs/JointState': joint_state_to_numpy,
+        'sensor_msgs/Image': image_to_numpy,
         # 'sensor_msgs/msg/Joy': joy_to_numpy,
         # 'franka_gripper/msg/GraspActionGoal': grasp_action_goal_to_numpy, # correct this later
     }
     # from ipdb import set_trace as bp; bp()
     msg_type = getattr(msg, '__msgtype__', None)
+    if msg_type is None:
+        # Try an alternative method for introspection (may depend on ROS version)
+        msg_type = getattr(type(msg), '_type', None)
     if msg_type in converters:
         return converters[msg_type](msg)
     else:

@@ -304,7 +304,8 @@ class PolicyController:
             Input: observation_dict
             Output: action as a numpy array (Mean action of the action distribution)
         """
-        act = self.policy.get_action(ob=observation_dict, goal=None)
+
+        act = self.policy(ob=observation_dict)
         # act : [x, y, z, ox, oy, oz, ow,  gripper_state]
         return act 
 
@@ -573,8 +574,8 @@ class PolicyController:
             # Keep running until it reaches the goal and opens the gripper
             while policy_controller_run:
                 # Get observation
-                obs = self.get_observation()
-                
+                obs = self.get_observation()["data"]
+                from ipdb import set_trace as bp; bp()
                 action = self.get_action(obs)
                 
                 quat_action = action[3:7]
@@ -664,4 +665,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     policy_controller = PolicyController(ckpt_path=args.agent, video_prompt_path=args.video_prompt, target_frequency=args.target_frequency)
     policy_controller.run()
-    
