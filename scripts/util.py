@@ -151,6 +151,7 @@ def image_to_numpy(msg):
       np.ndarray with shape (height, width, C) or (height, width), dtype determined by encoding.
     """
     img = message_to_cvimage(msg)   # returns numpy ndarray (H,W[,C])
+    img = img[..., :3] # Keep only first 3 channels because I don't want alpha
     return img
 
 # def grasp_action_goal_to_numpy(msg):
