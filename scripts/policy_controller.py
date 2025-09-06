@@ -435,6 +435,26 @@ class PolicyController:
 
         return quat  # (qx, qy, qz, qw)
 
+    def check_gripper_state(self):
+        """
+            Check whether gripper is close using '/franka_gripper/joint_states' topic
+            return 
+            1:  Closed
+            0:  In progress
+            -1: Open
+
+        """
+        gripper_msg = self.latest_msgs["/franka_gripper/joint_states"]
+        positions = np.array(gripper_msg.position)
+        print(positions)
+        drift = positions[0]
+        if drift < 0.01:
+            closed = 1
+        elif drift > 0.02:
+            closed = -1
+        else:
+            closed = 0
+        return closed
 
     def safety_check(self, action: np.ndarray) -> bool:
         """
@@ -451,8 +471,8 @@ class PolicyController:
 
             # Workspace bounds:
             # (tweak these sensible defaults to match your robot/setup)
-            workspace_lower = np.array([0.15, -0.6, 0.0], dtype=float)
-            workspace_upper = np.array([0.85,  0.6, 1.0], dtype=float)
+            workspace_lower = np.array([0.13, -0.45, 0.0], dtype=float)
+            workspace_upper = np.array([0.75,  0.45, 0.45], dtype=float)
 
 
             # Check if within bounds (inclusive)
@@ -575,16 +595,16 @@ class PolicyController:
             while policy_controller_run:
                 # Get observation
                 obs = self.get_observation()["data"]
-                from ipdb import set_trace as bp; bp()
+
                 action = self.get_action(obs)
                 
                 quat_action = action[3:7]
                 
                 # Safety check
-                if not self.safety_check(action):
-                    rospy.loginfo("[PolicyController] Action aborted by safety check.")
-                    policy_controller_run = False
-                    continue
+                # if not self.safety_check(action):
+                #     rospy.loginfo("[PolicyController] Action aborted by safety check.")
+                #     policy_controller_run = False
+                #     continue
                 
                 target_ee_pos = action[0:3]
                 target_ee_ori = quat_action
@@ -593,26 +613,34 @@ class PolicyController:
                 self.publish_eef_target(target_ee_pos, target_ee_ori)
                 
                 
+                MAX_RETRIES = 10  # or set a timeout if preferred
+
                 if gripper_action == 1.0 and self.gripper_open:
-                    result_grasp = False
-                    while not result_grasp:
-                        result_grasp = self.gripper.grasp()
-                        if result_grasp == True:
+                    for attempt in range(MAX_RETRIES):
+                        self.gripper.grasp()
+                        if self.check_gripper_state() == 1 :
                             self.gripper_open = False
                             print("Gripper was successfully closed")
+                            break
                         else:
-                            print("Gripper failed to close, retrying...")
-                            time.sleep(0.5)
+                            print(f"Gripper failed to close (attempt {attempt + 1}), retrying...")
+                            time.sleep(3)
+                    else:
+                        print("Gripper failed to close after max retries.")
+
                 elif gripper_action == -1.0 and not self.gripper_open:
-                    result_release = False
-                    while not result_release:
-                        result_release = self.gripper.move(0.04, 0.04)
-                        if result_release == True:
+                    for attempt in range(MAX_RETRIES):
+                        self.gripper.move(0.04, 0.04)
+                        # from ipdb import set_trace as bp; bp()
+                        if self.check_gripper_state() == -1:
                             self.gripper_open = True
                             print("Gripper was successfully opened")
+                            break
                         else:
-                            print("Gripper failed to open, retrying...")
-                            time.sleep(0.5)
+                            print(f"Gripper failed to open (attempt {attempt + 1}), retrying...")
+                            time.sleep(3)
+                    else:
+                        print("Gripper failed to open after max retries.")
                 
                 if self.check_over():
                     rospy.loginfo("[PolicyController] Task completed successfully.")
