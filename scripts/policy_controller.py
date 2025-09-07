@@ -601,10 +601,10 @@ class PolicyController:
                 quat_action = action[3:7]
                 
                 # Safety check
-                # if not self.safety_check(action):
-                #     rospy.loginfo("[PolicyController] Action aborted by safety check.")
-                #     policy_controller_run = False
-                #     continue
+                if not self.safety_check(action):
+                    rospy.loginfo("[PolicyController] Action aborted by safety check.")
+                    policy_controller_run = False
+                    continue
                 
                 target_ee_pos = action[0:3]
                 target_ee_ori = quat_action
