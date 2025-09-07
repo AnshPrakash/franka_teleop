@@ -1,10 +1,8 @@
 # List of topics to be recored along with the type
 
-save_folder: /opt/ros_ws/src/data_collection/
+save_folder: /opt/ros_ws/src/data_collection/robot-policy-eval/
 
 topics:
-  - /oculus/my_right_controller_1_Pose : Pose
-  - /oculus/my_right_controller_1/joy: Joy
   - /franka_state_controller/franka_states: FrankaState
   - /cartesian_impedance_controller/desired_pose: PoseStamped
   - /cartesian_impedance_controller/desired_gripper_state: PointStamped

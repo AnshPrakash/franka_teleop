@@ -116,7 +116,7 @@ class PolicyController:
             "/zedB/zed_node_B/left/image_rect_color"
             ]
         
-        save_folder = "eval_recordings"
+        save_folder = "/opt/ros_ws/src/data_collection/robot-policy-eval-recordings/"
         self.video_recorder = RosbagControlledRecorder(
             save_folder=save_folder,
             topics=video_topics_only,
@@ -512,7 +512,7 @@ class PolicyController:
             # orientation: if action contains euler angles use them, otherwise leave identity
             if action.size >= 6:
                 try:
-                    quat = self.action_to_ee_quaternion(action)  # expects (x,y,z,w) numpy array
+                    quat = action[3:7]  # expects (x,y,z,w) numpy array
                     # quaternion_from_euler returns [x, y, z, w]
                     pose_msg.pose.orientation.x = float(quat[0])
                     pose_msg.pose.orientation.y = float(quat[1])
@@ -581,7 +581,7 @@ class PolicyController:
         
         pass
     
-    def run(self):
+    def rollout(self):
         """
             Main loop to run the policy controller
             Get observation -> Select action -> Execute action
@@ -592,6 +592,7 @@ class PolicyController:
             # Get latent prompt from human video
             policy_controller_run = True
             # Keep running until it reaches the goal and opens the gripper
+            self.video_recorder.start_recording()
             while policy_controller_run:
                 # Get observation
                 obs = self.get_observation()["data"]
@@ -657,6 +658,25 @@ class PolicyController:
             self.move_home()
             
             rospy.sleep(2.0)
+
+    def run(self):
+        """
+            Wrapper over rollout to save recorind after Ctrl-C interupt
+        """
+        try:
+            self.rollout()
+        except KeyboardInterrupt:
+            rospy.loginfo("[PolicyController] KeyboardInterrupt received. Stopping...")
+
+            # Stop recording and save the video
+            try:
+                self.video_recorder.stop_recording()
+                rospy.loginfo("[PolicyController] Video recording stopped and saved.")
+            except Exception as e:
+                rospy.logwarn(f"[PolicyController] Failed to stop video recording: {e}")
+
+            rospy.signal_shutdown("KeyboardInterrupt")
+
         
     
     
