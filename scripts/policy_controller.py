@@ -36,6 +36,13 @@ import robomimic.utils.torch_utils as TorchUtils
 import robomimic.utils.tensor_utils as TensorUtils
 import robomimic.utils.obs_utils as ObsUtils
 
+# Reorder subprocess
+import subprocess
+import os
+import signal
+import time
+
+
 class PolicyController:
     def __init__(self, ckpt_path: str, video_prompt_path: str, target_frequency: float = 13):
         """
@@ -116,20 +123,28 @@ class PolicyController:
             "/zedB/zed_node_B/left/image_rect_color"
             ]
         
-        save_folder = "/opt/ros_ws/src/data_collection/robot-policy-eval-recordings/"
-        self.video_recorder = RosbagControlledRecorder(
-            save_folder=save_folder,
-            topics=video_topics_only,
-            is_video=True,
-            complementary_recorder=None
-            )
-        
         self.ckpt_path = ckpt_path
         self.video_prompt = video_prompt_path
         self.init_policy()
         
         self.startup_procedure()
         
+        # Video recorder
+        script_path = "/opt/ros_ws/src/franka_teleop/scripts/RosbagControlledRecorder.py"
+
+        # Start the script as a subprocess with python3 interpreter
+        self.proc = subprocess.Popen(
+            ["python3", script_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setsid  # To create a new process group for easier killing
+        )
+
+        print(f"Started RosbagControlledRecorder.py with PID {self.proc.pid}")
+
+
+
+        rospy.on_shutdown(self.shutdown_hook)
         rospy.loginfo("[PolicyController] Initialization complete. Topics subscribed: " + ", ".join(self.topics.keys()))
     
     
@@ -224,6 +239,22 @@ class PolicyController:
         switch_controller = rospy.ServiceProxy("/controller_manager/switch_controller", SwitchController)
         switch_controller(start_controllers, stop_controllers, 0, False, 0.0)
 
+    ############################### ROS Hooks #######################################################################
+    def shutdown_hook(self):
+        rospy.loginfo("[PolicyController] Shutting down.")
+        try:
+            # To terminate the whole process group gracefully
+            print("Sending SIGTERM to process group...")
+            os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+
+            # Wait for process to finish cleanup
+            self.proc.wait(timeout=5)
+            print("Process terminated.")
+            rospy.loginfo("[PolicyController] Video recording stopped and saved.")
+        except Exception as e:
+            rospy.logwarn(f"[PolicyController] Failed to stop video recording: {e}")
+        
+
 
     ############################################ Robot motion scripts ###############################################
     def startup_procedure(self, desired_joint_config=None, initial_config_pose=None):
@@ -263,6 +294,7 @@ class PolicyController:
 
         # Open gripper first
         action_result = self.gripper.move(0.04, 0.04) 
+        self.gripper_open = True
         if action_result == True:
             print("Gripper opened succesfully")
             self.gripper_open = True
@@ -409,31 +441,6 @@ class PolicyController:
         return None
 
         
-    def action_to_ee_quaternion(self, action: np.ndarray):
-        """
-        Convert the action's Euler orientation to an end-effector quaternion.
-
-        Expected action layout (for EE part):
-            [ x, y, z, ox, oy, oz, gripper_open ]
-        where ox, oy, oz are Euler angles (roll, pitch, yaw) in radians.
-
-        Returns:
-            np.ndarray of shape (4,) -> (qx, qy, qz, qw)
-        """
-        if action is None:
-            raise ValueError("action is None")
-
-
-        # Extract Euler angles (roll, pitch, yaw)
-        roll = float(action[3])
-        pitch = float(action[4])
-        yaw = float(action[5])
-
-        # roll, pitch, yaw = map(np.deg2rad, (roll, pitch, yaw))
-        
-        quat = np.asarray(quaternion_from_euler(roll, pitch, yaw), dtype=float) 
-
-        return quat  # (qx, qy, qz, qw)
 
     def check_gripper_state(self):
         """
@@ -471,25 +478,31 @@ class PolicyController:
 
             # Workspace bounds:
             # (tweak these sensible defaults to match your robot/setup)
-            workspace_lower = np.array([0.13, -0.45, 0.0], dtype=float)
+            workspace_lower = np.array([0.20, -0.45, 0.0], dtype=float)
             workspace_upper = np.array([0.75,  0.45, 0.45], dtype=float)
 
 
             # Check if within bounds (inclusive)
             inside = np.all(target_pos >= workspace_lower) and np.all(target_pos <= workspace_upper)
 
+            save_to_proceed = False
             if inside:
                 # safe to proceed
-                return True
+                save_to_proceed = True
+                # return True
+            else:
+                pass
+                # return False
 
-            # Outside workspace: publish visualization pose so user can inspect it in RViz
-            rospy.logwarn(
-                "[PolicyController] Requested EE target position is OUTSIDE the workspace bounds.\n"
-                f"  target_pos = {target_pos.tolist()}\n"
-                f"  allowed x = [{workspace_lower[0]}, {workspace_upper[0]}], "
-                f"y = [{workspace_lower[1]}, {workspace_upper[1]}], "
-                f"z = [{workspace_lower[2]}, {workspace_upper[2]}]"
-            )
+            # # Outside workspace: publish visualization pose so user can inspect it in RViz
+            if not save_to_proceed:
+                rospy.logwarn(
+                    "[PolicyController] Requested EE target position is OUTSIDE the workspace bounds.\n"
+                    f"  target_pos = {target_pos.tolist()}\n"
+                    f"  allowed x = [{workspace_lower[0]}, {workspace_upper[0]}], "
+                    f"y = [{workspace_lower[1]}, {workspace_upper[1]}], "
+                    f"z = [{workspace_lower[2]}, {workspace_upper[2]}]"
+                )
 
             # Create publisher on first use (latched so RViz can pick it up)
             if not hasattr(self, "_target_pose_pub"):
@@ -539,6 +552,8 @@ class PolicyController:
             while not rospy.is_shutdown():
                 try:
                     # Use input() so it works with python3
+                    if not save_to_proceed:
+                        rospy.logwarn("OUT OF WORKSPACE!")
                     user = input(prompt).strip().lower()
                 except EOFError:
                     # In some runtime contexts (no stdin), abort
@@ -567,20 +582,6 @@ class PolicyController:
             return False
 
     
-    def check_over(self) -> bool:
-        """
-            Check if the task is over
-            if the robot has reached the goal and opened the gripper
-            Goal is estimated from the action guidance
-            And ask the user to confirm
-            Returns True if the task is over, False otherwise
-        """
-        
-        
-        
-        
-        pass
-    
     def rollout(self):
         """
             Main loop to run the policy controller
@@ -588,11 +589,11 @@ class PolicyController:
             Get the video prompt from the human
             Also resets after every evaluation
         """
+        # self.video_recorder.start_recording()
         while not rospy.is_shutdown():
             # Get latent prompt from human video
             policy_controller_run = True
             # Keep running until it reaches the goal and opens the gripper
-            self.video_recorder.start_recording()
             while policy_controller_run:
                 # Get observation
                 obs = self.get_observation()["data"]
@@ -643,11 +644,6 @@ class PolicyController:
                     else:
                         print("Gripper failed to open after max retries.")
                 
-                if self.check_over():
-                    rospy.loginfo("[PolicyController] Task completed successfully.")
-                    policy_controller_run = False
-                    # Close everything and save the recording
-                    continue
                 
                 self.rate.sleep()
                 
@@ -665,15 +661,47 @@ class PolicyController:
         """
         try:
             self.rollout()
+            # self.video_recorder.start_recording()
+            # while not rospy.is_shutdown():
+                
+            #     if self.gripper_open:
+            #         print("trying to close")
+            #         for attempt in range(5):
+            #             res = self.gripper.grasp()
+            #             print("Gripper action result", res)
+            #             if self.check_gripper_state() == 1 :
+            #                 self.gripper_open = False
+            #                 print("Gripper was successfully closed")
+            #                 break
+            #             else:
+            #                 print(f"Gripper failed to close (attempt {attempt + 1}), retrying...")
+            #                 time.sleep(3)
+            #         else:
+            #             print("Gripper failed to close after max retries.")
+                # elif  not self.gripper_open:
+                #     for attempt in range(5):
+                #         self.gripper.move(0.04, 0.04)
+                #         # from ipdb import set_trace as bp; bp()
+                #         if self.check_gripper_state() == -1:
+                #             self.gripper_open = True
+                #             print("Gripper was successfully opened")
+                #             break
+                #         else:
+                #             print(f"Gripper failed to open (attempt {attempt + 1}), retrying...")
+                #             time.sleep(3)
+                #     else:
+                #         print("Gripper failed to open after max retries.")
+                # rospy.sleep(2.0)
+                
         except KeyboardInterrupt:
             rospy.loginfo("[PolicyController] KeyboardInterrupt received. Stopping...")
 
-            # Stop recording and save the video
-            try:
-                self.video_recorder.stop_recording()
-                rospy.loginfo("[PolicyController] Video recording stopped and saved.")
-            except Exception as e:
-                rospy.logwarn(f"[PolicyController] Failed to stop video recording: {e}")
+            # # Stop recording and save the video
+            # try:
+            #     # self.video_recorder.stop_recording()
+            #     rospy.loginfo("[PolicyController] Video recording stopped and saved.")
+            # except Exception as e:
+            #     rospy.logwarn(f"[PolicyController] Failed to stop video recording: {e}")
 
             rospy.signal_shutdown("KeyboardInterrupt")
 
