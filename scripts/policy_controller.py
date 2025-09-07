@@ -620,6 +620,7 @@ class PolicyController:
                 if gripper_action == 1.0 and self.gripper_open:
                     for attempt in range(MAX_RETRIES):
                         self.gripper.grasp()
+                        time.sleep(1)
                         if self.check_gripper_state() == 1 :
                             self.gripper_open = False
                             print("Gripper was successfully closed")
@@ -633,6 +634,7 @@ class PolicyController:
                 elif gripper_action == -1.0 and not self.gripper_open:
                     for attempt in range(MAX_RETRIES):
                         self.gripper.move(0.04, 0.04)
+                        time.sleep(1)
                         # from ipdb import set_trace as bp; bp()
                         if self.check_gripper_state() == -1:
                             self.gripper_open = True
@@ -661,15 +663,14 @@ class PolicyController:
         """
         try:
             self.rollout()
-            # self.video_recorder.start_recording()
+            # self.gripper_open = True
             # while not rospy.is_shutdown():
-                
             #     if self.gripper_open:
             #         print("trying to close")
             #         for attempt in range(5):
             #             res = self.gripper.grasp()
             #             print("Gripper action result", res)
-            #             if self.check_gripper_state() == 1 :
+            #             if True:
             #                 self.gripper_open = False
             #                 print("Gripper was successfully closed")
             #                 break
@@ -678,7 +679,7 @@ class PolicyController:
             #                 time.sleep(3)
             #         else:
             #             print("Gripper failed to close after max retries.")
-                # elif  not self.gripper_open:
+            #     # elif  not self.gripper_open:
                 #     for attempt in range(5):
                 #         self.gripper.move(0.04, 0.04)
                 #         # from ipdb import set_trace as bp; bp()
@@ -691,7 +692,9 @@ class PolicyController:
                 #             time.sleep(3)
                 #     else:
                 #         print("Gripper failed to open after max retries.")
-                # rospy.sleep(2.0)
+                # import pdb
+                # pdb.set_trace()
+                # self.rate.sleep()
                 
         except KeyboardInterrupt:
             rospy.loginfo("[PolicyController] KeyboardInterrupt received. Stopping...")
