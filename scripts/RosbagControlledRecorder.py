@@ -185,21 +185,48 @@ class RosbagControlledRecorder(object):
 
 
 if __name__ == '__main__':
-    rospy.init_node('rosbag_controlled_recording')
-
-    # Get parameters
-    rosbag_command = rospy.get_param('~rosbag_command','rosbag record -o /home/data_collection/data/ /rosout')  # str with rosbag command line command to be issued
-    record_from_startup = rospy.get_param('~record_from_startup', False)  # whether to start node already recording
-
-    # Start recorder object
-    recorder = RosbagControlledRecorder(rosbag_command, record_from_startup)
-
     
 
-    # Recording is also stopped on node shutdown. This allows stopping to be done via service call or regular Ctrl-C
-    rospy.on_shutdown(recorder.stop_recording_srv)
+    video_topics_only = [
+        "/zedA/zed_node_A/left/image_rect_color", 
+        "/zedB/zed_node_B/left/image_rect_color"
+    ]
 
-    while not rospy.is_shutdown():
-        #if recorder.recording_stopped:  # stop main node if recording has finished
-            #break
-        rospy.sleep(1.0)
+    save_folder = "/opt/ros_ws/src/data_collection/robot-policy-eval-recordings/"
+    video_recorder = RosbagControlledRecorder(
+        save_folder=save_folder,
+        topics=video_topics_only,
+        is_video=True,
+        complementary_recorder=None
+        )
+    
+    video_recorder.start_recording()
+    print("Recording started. Waiting for termination signal...")
+
+    # Flag to keep the program running
+    running = True
+    import signal
+    import time
+    
+    # Define a shutdown handler
+    def shutdown_handler(signum, frame):
+        # nonlocal running
+        video_recorder.stop_recording()
+        print(f"Received signal {signum}, stopping recording...")
+        running = False
+
+    # Attach signal handlers
+    signal.signal(signal.SIGINT, shutdown_handler)   # Ctrl+C or kill -2
+    signal.signal(signal.SIGTERM, shutdown_handler)  # kill or rosnode kill
+
+    # Wait until a signal is received
+    try:
+        while running:
+            time.sleep(0.5)
+    finally:
+        # Cleanup
+        video_recorder.stop_recording()
+        print("Recording stopped. Exiting.")
+    
+    
+    
