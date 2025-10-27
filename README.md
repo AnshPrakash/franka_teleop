@@ -38,8 +38,28 @@ catkin_make
 source devel/setup.bash
 ```
 
+### Build franka_teleop
+```
+cd /opt/ros_ws/
+catkin_make -DFranka_DIR=/opt/libfranka/build/
+```
 
-### Adjust recording Config for your usecase:
+### Troubleshooting
+
+UDP timeout error
+
+```
+sudo iptables -I INPUT 1 -s <robot-ip> -j ACCEPT
+```
+
+## Data Collection
+
+### Step 1:  Record Rosbag
+
+
+During teleoperation data will get recorded under `data-collection` folder. Since this is mounted it can be accessed outside of docker change the permission of all the data from your system(outside docker) `chmod -R 777 *`.
+
+`Adjust recording Config for your usecase`:
 
 update the following yaml => `/opt/ros_ws/src/franka_teleop/config/recorder.yaml`
 
@@ -58,22 +78,35 @@ video_topics: If you want to store it as a video
   - ..
 ```
 
-### Build franka_teleop
-```
-cd /opt/ros_ws/
-catkin_make -DFranka_DIR=/opt/libfranka/build/
-```
+> Note! `Step 2 and Step 3 can be done outside docker`
 
-### Troubleshooting
+## Step 2: Resample
 
-UDP timeout error
+For feeding the data into a learning alogrithm the observations needs to be downsampled to a desired frequency(hyper-parameter), and all of them to have same length. 
 
-```
-sudo iptables -I INPUT 1 -s <robot-ip> -j ACCEPT
-```
+As of now, we only do down-sampling so maximum frquency is limited by the lowest frequency observation.(Analysis of frequencies of various topics can also be easily done with the provide code [Check Visualisation section Readme for Sampler])
+
+Use the following [Sampler](https://github.com/AnshPrakash/MimicPlay/tree/main/sampler)
+
+Output is again in Rosbag format, but data is downsampled to a desired frequency.
+
+## Step 3: RLDS or robomimic format
+
+
+Most of the learning alogorithms expect data to be in certain format. 
+Now we convert the Rosbag format(After Step2) to either `RLDS`, or `Robomimic` format.
+
+Follow the steps in the following module: [Rosbag2hdf5](https://github.com/AnshPrakash/MimicPlay/blob/main/rosbag2hdf5/README.md)
+
+
+<p align="center">
+  <img src="images/data-processing-pipeline.png" width="500"/>
+</p>
 
 
 
+
+## Teleoperation with Quest
 
 
 ## 1. Start Franka controllers
