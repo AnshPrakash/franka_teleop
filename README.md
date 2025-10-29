@@ -34,14 +34,8 @@ Update the robot IP in the bashrc
 
 ```
 cd /opt/ros_ws
-catkin_make
-source devel/setup.bash
-```
-
-### Build franka_teleop
-```
-cd /opt/ros_ws/
 catkin_make -DFranka_DIR=/opt/libfranka/build/
+source devel/setup.bash
 ```
 
 ### Troubleshooting
