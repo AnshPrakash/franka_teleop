@@ -100,19 +100,19 @@ If you are setting up for the first time
 
 
 
-### Troubleshooting
+## Troubleshooting
 
-0. **Can't communicate outside docker**:
+### 0. **Can't communicate outside docker**:
 
   execute `xhost +` to allow all container to use the host network
 
-1. **UDP timeout error**
+###  1. **UDP timeout error**
 
 ```bash
 sudo iptables -I INPUT 1 -s <robot-ip> -j ACCEPT
 ```
 
-2. **Quest not found**
+###  2. **Quest not found**
 
 Test whether you can detect quest device from within the docker by typing `adb devices`
 It should give a similar output; here `340YC10GB814S5` indicates quest connected as USB device.
@@ -123,12 +123,23 @@ List of devices attached
 340YC10GB814S5  device
 ```
 
-If is an empty list then it is current not detected.
-You can follow these troubleshooting methods:
+  If is an empty list then it is current not detected.
+  You can follow these troubleshooting methods:
 
-1. Quest generally request for permission to allow the USB connect. Within the quest allow the USB to connect to the computer.
+  1. Quest generally request for permission to allow the USB connect. Within the quest allow the USB to connect to the computer.
 
-2. Stop the container, and start it again without destroying it.
+  2. Stop the container, and start it again without destroying it.
+
+### 3. **franka::RealtimeException** :
+
+
+If you enconter the following error while launching  `franka_interactive_teleop_real.launch`
+```
+[ INFO] [1761747867.000982983]: franka_control: main loop
+terminate called after throwing an instance of 'franka::RealtimeException'
+  what():  libfranka: Running kernel does not have realtime capabilities.
+```
+then make sure you to check `0. Realtime linux kernel` requirement above
 
 ## Data Collection pipeline
 
@@ -141,7 +152,7 @@ During teleoperation(see `Teleoperation with Quest` section below) data will get
 
 update the following yaml => `/opt/ros_ws/src/franka_teleop/config/recorder.yaml`
 
-```
+```yaml
 # List of topics to be recored along with the type
 
 save_folder: <location of data> keep in mind this is within the docker container, so don't forgot to mount it
@@ -218,7 +229,7 @@ Feel free to change this based on your camera setup, and change any other settin
 
 3. **Launch**
 To launch in the real world, unlock the joints in the desk application, active FCI and put it in Execution mode. Then launch the controllers:
-```
+```bash
 roslaunch franka_teleop franka_interactive_teleop_real.launch
 ```
 
