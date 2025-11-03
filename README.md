@@ -7,30 +7,27 @@ This repo provides is a complete docker containerised Teleoperation setup for Fr
 ## Requirements
 
 
-1. Docker
-2. realtime linux kernel
-
-  check by running `uname -a`. It should have `PREEMPT_RT` kernel version.
-  If not reboot the system, and select `realtime` kernel from the GRUB options.
-
-3. Meta Quest setup
+### 0. Realtime linux kernel :   
+check by running `uname -a`. It should have `PREEMPT_RT` kernel version. 
+If not reboot the system, and select `realtime` kernel from the GRUB options.
 
 
+### 1. Docker image: 
 
+You can follow the instructions on how to download docker and set up an alias for running a container with the required arguments in this repo: [Docker_env](https://github.com/pearl-robot-lab/Docker_env)
 
+You can find the aliases used here in the following [file](https://github.com/pearl-robot-lab/Docker_env/blob/main/create_alias.sh)
 
+Pull the docker image and create a container:
 
-You will need ROS1 (tested on ROS Noetic), `libfranka`,`franka_ros`, [Franka Interactive Controllers](https://github.com/sophiamoyen/franka_interactive_controllers) and [`franka_zed_gazebo`](https://github.com/pearl-robot-lab/franka_zed_gazebo). The `pose_impedance_control_additional_params.yaml` contains tunable parameters for external tool compensation and nullspace stiffness. When the `cartesian_pose_impedance_controller` is launched in the teleoperation, it looks up that file that should be tuned accordingly (with the ZED2 camera attached to the wrist, for example).
-
-
-## 0. Docker image
-You can get the current docker image of the environment being used for tests. You can follow the instructions on how to download docker and set up an alias for running a container with the required arguments in this repo: [Docker_env](https://github.com/pearl-robot-lab/Docker_env). Pull a docker image and create a container:
+```bash 
+docker pull levoz/franka_teleop:19082025
 ```
-docker push levoz/franka_teleop:19082025
-```
-```
+
+```bash
 docker_run_nvidia --name="franka_teleop" -v <data_collection_folder>:/opt/ros_ws/src/data_collection levoz/franka_teleop:19082025 bash
 ```
+
 You should now be inside the container. To exit it, just type `exit` in the cmd. From now on, every time you want to enter the container, start it then execute it:
 ```
 docker start franka_teleop
@@ -40,14 +37,16 @@ docker start franka_teleop
 docker exec -it franka_teleop bash
 ```
 
+
+#### i. To keep the franka_teleop repo up to date run the following:
+
 ```
 cd /opt/ros_ws/src/franka_teleop
 git remote set-url origin https://github.com/AnshPrakash/franka_teleop.git
 git pull --recurse-submodules
 ```
 
-
-## Update ROS_IP 
+#### ii. Update ROS_IP 
 
 Update the ROS related IPs in the bashrc for your system
 
@@ -57,17 +56,49 @@ export ROS_IP=130.83.144.47
 export ROS_HOSTNAME=130.83.144.47
 ```
 
-## Update Robot IP
+#### iii. Update Robot IP
 
 Update the robot IP in the launch script: `/opt/ros_ws/src/franka_teleop/launch/franka_interactive_teleop_real.launch`
 
-### Build & Source
+#### iv. Build & Source
 
 ```bash
 cd /opt/ros_ws
 catkin_make -DFranka_DIR=/opt/libfranka/build/
 source devel/setup.bash
 ```
+
+### 2. Meta Quest setup:
+
+
+If you are setting up for the first time
+
+  i. *Connect as USB device*: 
+  - Connect Meta Quest as USB device as allow permissions inside the Quest(check notifications)
+  - test with `adb devices` whether system can detect the device. Check `troubleshooting` section if device doesn't appear
+      
+  ii. *Placement*: Place the Headset on a stand so sensors are not occulded by anything.
+  <p align="left">
+    <img src="images/headset.jpg" width="250"/>
+  </p>
+
+  iii. *Open RAIL teleopration application*: 
+  <p align="left">
+    <img src="images/rail-teleop.jpg" width="250"/>
+  </p>
+
+  iv. *Set the position of Headset as close as possible to the green stand*: This is initially required to set the range for the controller and the headset
+
+  iv. *Headset field of view*: Always have conntroller in the field of view of the headset while teleoperating
+  <p align="left">
+    <img src="images/headset-controller.jpg" width="250"/>
+  </p>
+
+  
+
+>! Note: More information on oculus setup can be found:  [here](https://github.com/rail-berkeley/oculus_reader)
+
+
 
 ### Troubleshooting
 
@@ -247,10 +278,11 @@ Press A: To deactiavte teleopeartion; recorder will process current trajectory a
 Press `Trigger` button in the image to reset the robot to initial position
 ```
 
+This will record a single demo. You can repeat the above procedure to continue collecting data, and then process it through the `sampler`, and then the `formatter` as explained in the `data collection pipeline` section.
+
 Example teleoperation:
 
 ![Demo](images/teleop.gif)
-
 
 
 ### To do still:
