@@ -247,16 +247,9 @@ Press A: To deactiavte teleopeartion; recorder will process current trajectory a
 Press `Trigger` button in the image to reset the robot to initial position
 ```
 
-Example teleoperation video
+Example teleoperation:
 
-<video width="640" height="360" controls>
-  <source src="videos/teleop.mp4" type="video/mp4">
-  example teleoperation controller
-</video>
-
-
-
-
+![Demo](images/teleop.gif)
 
 
 
