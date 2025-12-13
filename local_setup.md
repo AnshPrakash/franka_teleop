@@ -45,21 +45,16 @@ sudo apt-get update
 sudo apt-get install -y build-essential cmake git libpoco-dev libeigen3-dev libfmt-dev
 ```
 
-Use vscode devcontainer to open libfranka then :  
+Then: 
 
 ```
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
-make
-```
-```
 cmake -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_TESTS=OFF \
       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-      -DCMAKE_INSTALL_PREFIX=/home/ansh/lib/libfranka/install \
+      -DCMAKE_INSTALL_PREFIX=/home/ansh/lib/libfranka/build \
       ..
 make -j$(nproc)
-make install
 ```
 
 
@@ -91,12 +86,12 @@ git clone https://github.com/stereolabs/zed-ros-interfaces.git
 cd ~/single_franka_ws
 
 
-<!-- catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFranka_DIR=/home/ansh/lib/libfranka/build/ -->
+catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFranka_DIR=/home/ansh/lib/libfranka/build/
 
-catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFranka_DIR=<your-libfranka-installation>/libfranka/install/lib/cmake/Franka 
+catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFranka_DIR=<your-libfranka-installation>libfranka/build/
 
 
-catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFranka_DIR=/home/ansh/lib/libfranka/install/lib/cmake/Franka  -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"
+catkin_make -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFranka_DIR=/home/ansh/lib/libfranka/build/  -DCMAKE_PREFIX_PATH="$CONDA_PREFIX"
 
 source devel/setup.bash
 
