@@ -24,6 +24,10 @@ conda install -c conda-forge -c robostack-noetic \
 
 export CONDA_PREFIX=$(conda info --base)/envs/single_franka_ws
 export CMAKE_PREFIX_PATH=$CONDA_PREFIX:$CMAKE_PREFIX_PATH
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+export CMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$CONDA_PREFIX/lib -Wl,-rpath-link,$CONDA_PREFIX/lib"
+export CMAKE_SHARED_LINKER_FLAGS="$CMAKE_EXE_LINKER_FLAGS"
+
 
 
 <!-- conda install -c conda-forge libfranka  -->
@@ -82,6 +86,18 @@ git clone -b noetic-devel https://github.com/moveit/panda_moveit_config.git
 git clone https://github.com/iROSA-lab/franka_zed_gazebo.git
 
 git clone https://github.com/stereolabs/zed-ros-interfaces.git
+
+git clone https://github.com/PickNikRobotics/boost_sml.git
+
+
+
+cd franka_teleop/droid
+pip install -e .
+
+cd ..
+
+
+python -m pip install cython numpy opencv-python pyopengl
 
 cd ~/single_franka_ws
 
