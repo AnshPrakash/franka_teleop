@@ -26,4 +26,7 @@
 
   <!-- If you need system packages declared for rosdep, add them here.
        Python-only pip packages should be installed via requirements or CI. -->
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>
