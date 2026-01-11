@@ -27,6 +27,7 @@ if __name__ == '__main__':
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, glob.glob('launch/**')),
         ('share/' + package_name, glob.glob('config/**')),
+        ('share/' + package_name, glob.glob('urdf/**')),
     ]
 
 
