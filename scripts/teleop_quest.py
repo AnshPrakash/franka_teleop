@@ -354,7 +354,14 @@ class Teleop(Node):
     ################################# teleop loop (with recording) #################################
     def run(self):
         """
-        Cleaner teleoperation loop with recorder integration.
+        Runs the teleoperation. Some notes:
+            - The teleoperation can be started/stopped by pressing the home button in the quest controller
+            - The gripper can closed/opened by pressing the trigger in the quest controller
+            - The robot can be moved to home position if the pad button is pressed
+            - For updating the translation of the end-effector, a simple scale factor is used sucha as:
+                A' = A + alpha(B'-B)
+            - For updating the rotation, a matrix multiplication for quaternions is done:
+                A' = (B*Binv)*A
         """
         rate_hz = 50.0
         dt = 1.0 / rate_hz
