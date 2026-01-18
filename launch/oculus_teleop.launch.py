@@ -8,8 +8,7 @@ Usage:
   source install/setup.bash
   ros2 launch franka_teleop oculus_teleop.launch.py
 
-If you prefer to use Node(package=..., executable=...) instead, make sure your
-console-scripts are installed into install/<pkg>/lib/<pkg> (see previous guidance).
+console-scripts are installed into install/<pkg>/lib/<pkg>.
 """
 import os
 from launch import LaunchDescription
