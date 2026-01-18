@@ -52,12 +52,16 @@ def format_to_columns(input_list, cols):
 
 class RosbagControlledRecorder(Node):
     """Record a rosbag with service calls to control start, stop  and pause"""
-    def __init__(self, save_folder, topics, is_video=False, complementary_recorder: RosbagControlledRecorder=None, debug=False):
+    def __init__(self, save_folder, topics, is_video=False, complementary_recorder: 'RosbagControlledRecorder'=None, debug=False):
         """
             All topics should be either video topics or all should be non-video topics
         """
         super().__init__('rosbag_controlled_recording')
-        os.makedirs(save_folder, exist_ok=True)
+        try:
+            os.makedirs(save_folder, exist_ok=True)
+        except Exception as e:
+            self.get_logger().error(f"Failed to create directory {save_folder}: {e}")
+            raise e
         self.save_folder = save_folder
         self.topics = topics
         self.is_video = is_video

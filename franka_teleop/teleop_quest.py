@@ -16,10 +16,11 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
+from rclpy.qos import QoSProfile
 
 from geometry_msgs.msg import Pose, PoseStamped, PointStamped
 from sensor_msgs.msg import JointState, Joy
-from franka_msgs.msg import FrankaState
+from franka_msgs.msg import FrankaRobotState
 
 from controller_manager_msgs.srv import SwitchController, LoadController, UnloadController, ListControllers
 from control_msgs.action import FollowJointTrajectory
@@ -82,8 +83,7 @@ class Teleop(Node):
 
         # publishers
         qos_profile = 10
-        self.pub = self.create_publisher(PoseStamped, '/cartesian_impedance_controller/desired_pose', qos_profile)
-        self.pub_gripper = self.create_publisher(PointStamped, '/cartesian_impedance_controller/desired_gripper_state', qos_profile)
+        self.pub = self.create_publisher(PoseStamped, '/cartesian_impedance_example_controller/equilibrium_pose', qos_profile)
 
         # subscribers
         if self.QUEST_CONTROLLER == 0:
@@ -93,7 +93,8 @@ class Teleop(Node):
             self.quest_right_subscriber = self.create_subscription(Pose, '/oculus/my_right_controller_1_Pose', self.quest_pose_cb, qos_profile)
             self.button_right_subscriber = self.create_subscription(Joy, '/oculus/my_right_controller_1/joy', self.button_cb, qos_profile)
 
-        self.subscriber_ee_pose = self.create_subscription(FrankaState, '/franka_state_controller/franka_states', self.__process_ee_pose, 1)
+        # TODO: subscribe to franka states for ee pose
+        self.subscriber_ee_pose = self.create_subscription(FrankaRobotState, '/franka_state_controller/franka_states', self.__process_ee_pose, 1)
 
         # controller manager service clients
         self._list_controllers_client = self.create_client(ListControllers, '/controller_manager/list_controllers')
@@ -101,6 +102,7 @@ class Teleop(Node):
         self._unload_controller_client = self.create_client(UnloadController, '/controller_manager/unload_controller')
         self._switch_controller_client = self.create_client(SwitchController, '/controller_manager/switch_controller')
 
+        #TODO: Update to activate move to start on controller instead
         # action client for joint trajectory
         action_name = 'effort_joint_trajectory_controller/follow_joint_trajectory'
         self.trajectory_client = ActionClient(self, FollowJointTrajectory, action_name)
@@ -155,7 +157,7 @@ class Teleop(Node):
         if len(button_data.buttons) > 3:
             self.quest_side_button = button_data.buttons[3]
 
-    def __process_ee_pose(self, msg: FrankaState):
+    def __process_ee_pose(self, msg: FrankaRobotState):
         try:
             mat = np.transpose(np.reshape(msg.O_T_EE, (4, 4)))
             q = tf_transformations.quaternion_from_matrix(mat)
@@ -168,7 +170,7 @@ class Teleop(Node):
             self.ee_pose.position.y = float(msg.O_T_EE[13])
             self.ee_pose.position.z = float(msg.O_T_EE[14])
         except Exception as e:
-            self.get_logger().warn(f'Failed to process FrankaState: {e}')
+            self.get_logger().warn(f'Failed to process FrankaRobotState: {e}')
 
     ################################# utilities #################################
     def get_NE_pose(self):
@@ -475,7 +477,12 @@ class Teleop(Node):
             time.sleep(dt)
 
 
-@hydra.main(version_base=None, config_path="/opt/ros_ws/src/franka_teleop/config", config_name="recorder.yaml")
+from pathlib import Path
+# compute config folder relative to this Python file
+CONFIG_DIR = Path(__file__).parent.parent / "config"
+
+print(f"Using config path: {CONFIG_DIR}")
+@hydra.main(version_base=None, config_path=str(CONFIG_DIR), config_name="recorder.yaml")
 def main(cfg: DictConfig):
     rclpy.init()
     node = Teleop(cfg)
