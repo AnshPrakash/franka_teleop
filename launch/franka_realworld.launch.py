@@ -138,6 +138,8 @@ def generate_launch_description():
                 {'source_list': ['franka/joint_states', 'franka_gripper/joint_states'],
                  'rate': 30}],
         ),
+
+
         Node(
             package='controller_manager',
             executable='spawner',
@@ -164,21 +166,21 @@ def generate_launch_description():
              arguments=['--display-config', rviz_file],
              condition=IfCondition(use_rviz)
              ),
-        # # Start move_to_start_example_controller immediately
-        # Node(
-        #     package='controller_manager',
-        #     executable='spawner',
-        #     arguments=['move_to_start_example_controller'],
-        #     output='screen',
-        # ),
+        # Start move_to_start_example_controller immediately
+        Node(
+            package='controller_manager',
+            executable='spawner',
+            arguments=['--inactive', 'move_to_start_example_controller'],
+            output='screen',
+        ),
 
-        # # Load cartesian_impedance_example_controller but leave it stopped
-        # Node(
-        #     package='controller_manager',
-        #     executable='spawner',
-        #     arguments=['--stopped', 'cartesian_impedance_example_controller'],
-        #     output='screen',
-        # ),
+        # Load cartesian_impedance_example_controller but leave it stopped
+        Node(
+            package='controller_manager',
+            executable='spawner',
+            arguments=['--inactive', 'cartesian_impedance_example_controller'],
+            output='screen',
+        ),
 
         
     ])
