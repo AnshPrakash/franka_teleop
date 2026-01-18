@@ -21,7 +21,7 @@ import numpy as np
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import Joy
 
-from oculus_controller import VRPolicyFranka
+from franka_teleop.oculus_controller import VRPolicyFranka
 from droid.misc.transformations import euler_to_quat
 
 

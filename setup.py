@@ -28,6 +28,7 @@ if __name__ == '__main__':
         ('share/' + package_name, glob.glob('launch/**')),
         ('share/' + package_name, glob.glob('config/**')),
         ('share/' + package_name, glob.glob('urdf/**')),
+        ('share/' + package_name, glob.glob('worlds/**')),
     ]
 
 
@@ -40,7 +41,7 @@ if __name__ == '__main__':
         zip_safe=True,
         author='Ansh Prakash',
         author_email='todo@email.org',
-        keywords=['ROS1'],
+        keywords=['ROS2'],
         classifiers=[
             'Intended Audience :: Developers',
             'Programming Language :: Python',

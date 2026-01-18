@@ -97,7 +97,7 @@ def _setup(context, *args, **kwargs):
         
 
         actions.append(LogInfo(msg=f"[multi_zed_required] Included zed launch for '{cam_name}' (serial {serial})"))
-    print(actions)
+
     return actions
 
 
